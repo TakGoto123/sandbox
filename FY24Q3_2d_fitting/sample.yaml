@@ -1,0 +1,37 @@
+A:
+  type: "point"
+  mode: "none"
+  reference_position: [1.0, 2.0]
+  target_position: [4.0, 6.0]
+
+B:
+  type: "point"
+  mode: "residual"
+  reference_position: [2.0, 3.0]
+  target_position: [5.0, 7.0]
+
+C:
+  type: "point"
+  mode: "optimize"
+  reference_position: [3.0, 5.0]
+  target_position: [6.0, 9.0]
+
+S1:
+  type: "segment"
+  mode: "residual"
+  reference_segment:
+    start: [1.0, 2.0]
+    end: [3.0, 5.0]
+  target_points:
+    - [2.5, 3.5]
+    - [2.8, 3.7]
+
+S2:
+  type: "segment"
+  mode: "optimize"
+  reference_segment:
+    start: [2.0, 3.0]
+    end: [4.0, 6.0]
+  target_points:
+    - [3.0, 4.5]
+    - [3.2, 4.8]
