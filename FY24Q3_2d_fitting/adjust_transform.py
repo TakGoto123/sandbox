@@ -4,6 +4,28 @@ import pandas as pd
 import argparse
 import yaml
 
+def str_to_bool(value):
+    """
+    Convert a string to a boolean value.
+
+    Args:
+        value (str): Input string (e.g., "true", "false", "t", "f").
+
+    Returns:
+        bool: Converted boolean value.
+
+    Raises:
+        argparse.ArgumentTypeError: If the value cannot be converted to boolean.
+    """
+    if isinstance(value, bool):
+        return value
+    if value.lower() in ('yes', 'true', 't', 'y', '1'):
+        return True
+    elif value.lower() in ('no', 'false', 'f', 'n', '0'):
+        return False
+    else:
+        raise argparse.ArgumentTypeError(f"Boolean value expected, got {value}.")
+
 def load_data_from_yaml(file_path):
     """
     Load input data from a YAML file.
@@ -71,27 +93,33 @@ def convert_data_for_optimization(points, segments):
         optimize_target_points_on_segments
     )
 
-def calculate_residuals(points, segments, optimal_translation, optimal_theta, optimal_scale):
+def calculate_residuals(points, segments, translation, theta, scale):
     """
     Calculate residuals for points and segments.
 
     Args:
         points (dict): Filtered points data.
         segments (dict): Filtered segments data.
-        optimal_translation (np.ndarray): Optimal translation vector.
-        optimal_theta (float): Optimal rotation angle in radians.
-        optimal_scale (float): Optimal scaling factor.
+        translation (np.ndarray): Translation vector.
+        theta (float): Rotation angle in radians.
+        scale (float): Scaling factor.
 
     Returns:
         dict: Residuals for points and segments.
     """
     residual_dict = {}
 
+    # Rotation matrix for transformation
+    rotation_matrix = np.array([
+        [np.cos(theta), -np.sin(theta)],
+        [np.sin(theta), np.cos(theta)]
+    ])
+
     for key, value in points.items():
-        transformed_reference = (
-            np.array(value['reference_position']) * optimal_scale + optimal_translation
+        transformed_target = (
+            (np.array(value['target_position']) @ rotation_matrix.T) * scale + translation
         )
-        residual = np.linalg.norm(transformed_reference - np.array(value['target_position']))
+        residual = np.linalg.norm(transformed_target - np.array(value['reference_position']))
         residual_dict[key] = round(residual, 4)
 
     for key, value in segments.items():
@@ -100,30 +128,34 @@ def calculate_residuals(points, segments, optimal_translation, optimal_theta, op
             np.array(value['reference_segment']['end'])
         )
         for i, target_point in enumerate(value['target_points']):
-            residual = point_to_segment_distance(np.array(target_point), segment)
+            transformed_target_point = (
+                (np.array(target_point) @ rotation_matrix.T) * scale + translation
+            )
+            residual = point_to_segment_distance(transformed_target_point, segment)
             residual_dict[f"{key}_Point{i+1}"] = round(residual, 4)
 
     return residual_dict
 
-def display_results(optimal_translation, optimal_theta, optimal_scale, residual_dict):
+def display_results(translation, theta, scale, residual_dict, label="Optimal"):
     """
     Display optimization results and residuals.
 
     Args:
-        optimal_translation (np.ndarray): Optimal translation vector.
-        optimal_theta (float): Optimal rotation angle in radians.
-        optimal_scale (float): Optimal scaling factor.
+        translation (np.ndarray): Translation vector.
+        theta (float): Rotation angle in radians.
+        scale (float): Scaling factor.
         residual_dict (dict): Residuals for points and segments.
+        label (str): Label for the parameter set (e.g., "Optimal" or "Initial").
     """
-    print("Optimal Results:")
-    print("Optimal Translation (dx, dy):", optimal_translation)
-    print("Optimal Rotation (theta in radians):", optimal_theta)
-    print("Optimal Scale:", optimal_scale)
+    print(f"{label} Results:")
+    print(f"{label} Translation (dx, dy):", translation)
+    print(f"{label} Rotation (theta in radians):", theta)
+    print(f"{label} Scale:", scale)
 
     residuals_df = pd.DataFrame(list(residual_dict.items()), columns=["Point/Segment", "Residual"])
     residuals_df.loc["Mean"] = ["Mean", round(residuals_df["Residual"].mean(), 4)]
 
-    print("Residuals:")
+    print(f"{label} Residuals:")
     print(residuals_df)
 
 def main():
@@ -132,9 +164,9 @@ def main():
     """
     parser = argparse.ArgumentParser(description="Run bundle adjustment with residual calculation.")
     parser.add_argument("yaml_file", type=str, help="Path to the YAML file containing input data.")
-    parser.add_argument("--optimize_translation", type=bool, default=True, help="Enable or disable translation optimization (default: True).")
-    parser.add_argument("--optimize_rotation", type=bool, default=True, help="Enable or disable rotation optimization (default: True).")
-    parser.add_argument("--optimize_scale", type=bool, default=True, help="Enable or disable scale optimization (default: True).")
+    parser.add_argument("--optimize_translation", type=str_to_bool, default=True, help="Enable or disable translation optimization (default: True).")
+    parser.add_argument("--optimize_rotation", type=str_to_bool, default=True, help="Enable or disable rotation optimization (default: True).")
+    parser.add_argument("--optimize_scale", type=str_to_bool, default=True, help="Enable or disable scale optimization (default: True).")
     args = parser.parse_args()
 
     # Load data from YAML
@@ -148,6 +180,15 @@ def main():
         filtered_points, filtered_segments
     )
 
+    # Calculate initial residuals
+    initial_translation = np.array([0.0, 0.0])
+    initial_theta = 0.0
+    initial_scale = 1.0
+    initial_residuals = calculate_residuals(
+        filtered_points, filtered_segments, initial_translation, initial_theta, initial_scale
+    )
+    display_results(initial_translation, initial_theta, initial_scale, initial_residuals, label="Initial")
+
     # Run optimization
     optimal_translation, optimal_theta, optimal_scale = optimize_transformation(
         optimize_reference_points,
@@ -159,16 +200,11 @@ def main():
         optimize_scale=args.optimize_scale
     )
 
-    # Extract residual data
-    filtered_points, filtered_segments = extract_data_by_mode(data, modes=["residual", "optimize"])
-
-    # Calculate residuals
-    residual_dict = calculate_residuals(
+    # Calculate optimal residuals
+    optimal_residuals = calculate_residuals(
         filtered_points, filtered_segments, optimal_translation, optimal_theta, optimal_scale
     )
-
-    # Display results
-    display_results(optimal_translation, optimal_theta, optimal_scale, residual_dict)
+    display_results(optimal_translation, optimal_theta, optimal_scale, optimal_residuals, label="Optimal")
 
 if __name__ == "__main__":
     main()

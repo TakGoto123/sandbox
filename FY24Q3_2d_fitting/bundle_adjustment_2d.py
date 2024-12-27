@@ -94,21 +94,25 @@ def error_function(params, reference_points, target_points, reference_segments, 
         scale = params[param_idx]
 
     transformation_matrix = calculate_transformation_matrix(theta, scale)
-    transformed_target = transform_points(target_points, dx, dy, transformation_matrix)
 
-    # Calculate point-to-point residuals
-    point_to_point_residuals = np.linalg.norm(reference_points - transformed_target, axis=1)
-    point_to_point_error = np.sum(point_to_point_residuals ** 2)
+    # Handle empty target points
+    point_to_point_error = 0.0
+    point_to_point_residuals = []
+    if len(target_points) > 0:
+        transformed_target = transform_points(target_points, dx, dy, transformation_matrix)
+        point_to_point_residuals = np.linalg.norm(reference_points - transformed_target, axis=1)
+        point_to_point_error = np.sum(point_to_point_residuals ** 2)
 
-    # Calculate point-to-segment residuals
+    # Handle empty target points on segments
     point_to_segment_residuals = []
-    for segment, targets in zip(reference_segments, target_points_on_segments):
-        for target_point in targets:
-            transformed_target_point = transform_points(np.array([target_point]), dx, dy, transformation_matrix)[0]
-            dist = point_to_segment_distance(transformed_target_point, segment)
-            point_to_segment_residuals.append(dist)
-
-    point_to_segment_error = np.sum(np.array(point_to_segment_residuals) ** 2)
+    point_to_segment_error = 0.0
+    if len(target_points_on_segments) > 0:
+        for segment, targets in zip(reference_segments, target_points_on_segments):
+            for target_point in targets:
+                transformed_target_point = transform_points(np.array([target_point]), dx, dy, transformation_matrix)[0]
+                dist = point_to_segment_distance(transformed_target_point, segment)
+                point_to_segment_residuals.append(dist)
+        point_to_segment_error = np.sum(np.array(point_to_segment_residuals) ** 2)
 
     if residuals is not None:
         residuals.extend(point_to_point_residuals)
