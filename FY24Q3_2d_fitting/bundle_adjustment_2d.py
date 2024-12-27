@@ -31,9 +31,41 @@ def point_to_segment_distance(point, segment):
         closest_point = p1 + projection * line_unitvec
     return np.linalg.norm(point - closest_point)
 
+def calculate_transformation_matrix(theta, scale):
+    """
+    Precompute the transformation matrix for rotation and scaling.
+
+    Args:
+        theta (float): Rotation angle in radians.
+        scale (float): Scaling factor.
+
+    Returns:
+        np.ndarray: Transformation matrix.
+    """
+    rotation_matrix = np.array([
+        [np.cos(theta), -np.sin(theta)],
+        [np.sin(theta), np.cos(theta)]
+    ])
+    return rotation_matrix * scale
+
+def transform_points(points, dx, dy, transformation_matrix):
+    """
+    Transform points based on given translation and a precomputed transformation matrix.
+
+    Args:
+        points (np.ndarray): Points to transform.
+        dx (float): Translation in x-direction.
+        dy (float): Translation in y-direction.
+        transformation_matrix (np.ndarray): Precomputed rotation and scaling matrix.
+
+    Returns:
+        np.ndarray: Transformed points.
+    """
+    return (points @ transformation_matrix.T) + np.array([dx, dy])
+
 def error_function(params, reference_points, target_points, reference_segments, target_points_on_segments, optimize_translation, optimize_rotation, optimize_scale, residuals=None):
     """
-    Calculate the total error between transformed reference data and target data.
+    Calculate the total error between transformed target data and reference data.
 
     Args:
         params (np.ndarray): Transformation parameters (translation, rotation, scale).
@@ -49,29 +81,34 @@ def error_function(params, reference_points, target_points, reference_segments, 
     Returns:
         float: Total error.
     """
-    dx = params[0] if optimize_translation else 0.0
-    dy = params[1] if optimize_translation else 0.0
-    theta = params[2] if optimize_rotation else 0.0
-    scale = params[3] if optimize_scale else 1.0
+    param_idx = 0
+    dx, dy, theta, scale = 0.0, 0.0, 0.0, 1.0
 
-    rotation_matrix = np.array([
-        [np.cos(theta), -np.sin(theta)],
-        [np.sin(theta), np.cos(theta)]
-    ])
-    transformed_reference = (reference_points @ rotation_matrix.T) * scale + np.array([dx, dy])
+    if optimize_translation:
+        dx, dy = params[param_idx], params[param_idx + 1]
+        param_idx += 2
+    if optimize_rotation:
+        theta = params[param_idx]
+        param_idx += 1
+    if optimize_scale:
+        scale = params[param_idx]
+
+    transformation_matrix = calculate_transformation_matrix(theta, scale)
+    transformed_target = transform_points(target_points, dx, dy, transformation_matrix)
 
     # Calculate point-to-point residuals
-    point_to_point_residuals = np.linalg.norm(transformed_reference - target_points, axis=1)
+    point_to_point_residuals = np.linalg.norm(reference_points - transformed_target, axis=1)
     point_to_point_error = np.sum(point_to_point_residuals ** 2)
 
     # Calculate point-to-segment residuals
     point_to_segment_residuals = []
-    point_to_segment_error = 0.0
     for segment, targets in zip(reference_segments, target_points_on_segments):
         for target_point in targets:
-            dist = point_to_segment_distance(target_point, segment)
+            transformed_target_point = transform_points(np.array([target_point]), dx, dy, transformation_matrix)[0]
+            dist = point_to_segment_distance(transformed_target_point, segment)
             point_to_segment_residuals.append(dist)
-            point_to_segment_error += dist ** 2
+
+    point_to_segment_error = np.sum(np.array(point_to_segment_residuals) ** 2)
 
     if residuals is not None:
         residuals.extend(point_to_point_residuals)
@@ -102,7 +139,7 @@ def create_initial_params(optimize_translation, optimize_rotation, optimize_scal
 
 def optimize_transformation(reference_points, target_points, reference_segments, target_points_on_segments, optimize_translation=True, optimize_rotation=True, optimize_scale=True):
     """
-    Optimize transformation parameters to align reference data with target data.
+    Optimize transformation parameters to align target data with reference data.
 
     Args:
         reference_points (np.ndarray): Reference points.
@@ -130,24 +167,18 @@ def optimize_transformation(reference_points, target_points, reference_segments,
 
     optimal_params = result.x
     params_index = 0
+    dx, dy, theta, scale = 0.0, 0.0, 0.0, 1.0
+
     if optimize_translation:
-        optimal_translation = optimal_params[params_index:params_index+2]
+        dx, dy = optimal_params[params_index], optimal_params[params_index + 1]
         params_index += 2
-    else:
-        optimal_translation = [0.0, 0.0]
-
     if optimize_rotation:
-        optimal_theta = optimal_params[params_index]
+        theta = optimal_params[params_index]
         params_index += 1
-    else:
-        optimal_theta = 0.0
-
     if optimize_scale:
-        optimal_scale = optimal_params[params_index]
-    else:
-        optimal_scale = 1.0
+        scale = optimal_params[params_index]
 
-    return optimal_translation, optimal_theta, optimal_scale
+    return [dx, dy], theta, scale
 
 def main():
     """
