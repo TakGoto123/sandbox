@@ -136,7 +136,7 @@ def calculate_residuals(points, segments, translation, theta, scale):
 
     return residual_dict
 
-def display_results(translation, theta, scale, residual_dict, label="Optimal"):
+def display_results(translation, theta, scale, residual_dict, label="Results"):
     """
     Display optimization results and residuals.
 
@@ -145,9 +145,8 @@ def display_results(translation, theta, scale, residual_dict, label="Optimal"):
         theta (float): Rotation angle in radians.
         scale (float): Scaling factor.
         residual_dict (dict): Residuals for points and segments.
-        label (str): Label for the parameter set (e.g., "Optimal" or "Initial").
+        label (str): Label for the parameter set (e.g., "Results").
     """
-    print(f"{label} Results:")
     print(f"{label} Translation (dx, dy):", translation)
     print(f"{label} Rotation (theta in radians):", theta)
     print(f"{label} Scale:", scale)
@@ -164,9 +163,6 @@ def main():
     """
     parser = argparse.ArgumentParser(description="Run bundle adjustment with residual calculation.")
     parser.add_argument("yaml_file", type=str, help="Path to the YAML file containing input data.")
-    parser.add_argument("--optimize_translation", type=str_to_bool, default=True, help="Enable or disable translation optimization (default: True).")
-    parser.add_argument("--optimize_rotation", type=str_to_bool, default=True, help="Enable or disable rotation optimization (default: True).")
-    parser.add_argument("--optimize_scale", type=str_to_bool, default=True, help="Enable or disable scale optimization (default: True).")
     args = parser.parse_args()
 
     # Load data from YAML
@@ -180,31 +176,39 @@ def main():
         filtered_points, filtered_segments
     )
 
-    # Calculate initial residuals
-    initial_translation = np.array([0.0, 0.0])
-    initial_theta = 0.0
-    initial_scale = 1.0
-    initial_residuals = calculate_residuals(
-        filtered_points, filtered_segments, initial_translation, initial_theta, initial_scale
-    )
-    display_results(initial_translation, initial_theta, initial_scale, initial_residuals, label="Initial")
+    # Optimization scenarios
+    scenarios = [
+        {"label": "Initial", "translation": False, "rotation": False, "scale": False},
+        {"label": "Translation Only", "translation": True, "rotation": False, "scale": False},
+        {"label": "Translation + Rotation", "translation": True, "rotation": True, "scale": False},
+        {"label": "Translation + Rotation + Scale", "translation": True, "rotation": True, "scale": True}
+    ]
 
-    # Run optimization
-    optimal_translation, optimal_theta, optimal_scale = optimize_transformation(
-        optimize_reference_points,
-        optimize_target_points,
-        optimize_segments,
-        optimize_target_points_on_segments,
-        optimize_translation=args.optimize_translation,
-        optimize_rotation=args.optimize_rotation,
-        optimize_scale=args.optimize_scale
-    )
-
-    # Calculate optimal residuals
-    optimal_residuals = calculate_residuals(
-        filtered_points, filtered_segments, optimal_translation, optimal_theta, optimal_scale
-    )
-    display_results(optimal_translation, optimal_theta, optimal_scale, optimal_residuals, label="Optimal")
+    for scenario in scenarios:
+        if scenario["label"] == "Initial":
+            # Use default parameters for "Initial"
+            translation = np.array([0.0, 0.0])
+            theta = 0.0
+            scale = 1.0
+            residuals = calculate_residuals(
+                filtered_points, filtered_segments, translation, theta, scale
+            )
+            display_results(translation, theta, scale, residuals, label=scenario["label"])
+        else:
+            # Optimize for the given scenario
+            translation, theta, scale = optimize_transformation(
+                optimize_reference_points,
+                optimize_target_points,
+                optimize_segments,
+                optimize_target_points_on_segments,
+                optimize_translation=scenario["translation"],
+                optimize_rotation=scenario["rotation"],
+                optimize_scale=scenario["scale"]
+            )
+            residuals = calculate_residuals(
+                filtered_points, filtered_segments, translation, theta, scale
+            )
+            display_results(translation, theta, scale, residuals, label=scenario["label"])
 
 if __name__ == "__main__":
     main()
