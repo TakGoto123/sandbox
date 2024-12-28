@@ -16,8 +16,8 @@ def plot_adjustments(reference_points, reference_segments, target_points, target
 
     # Plot reference points
     for key, pos in reference_points.items():
-        plt.scatter(pos[0], pos[1], color='red', label='Reference Points' if key == list(reference_points.keys())[0] else "")
-        plt.text(pos[0] + 0.1, pos[1], key, color='red', fontsize=10)
+        plt.scatter(pos[0], pos[1], color='red', marker='o', label='Reference Points' if key == list(reference_points.keys())[0] else "")
+        plt.text(pos[0] + 0.1, pos[1], key, color='red', fontsize=5)
 
     # Plot reference segments
     for start, end in reference_segments:
@@ -51,13 +51,13 @@ def plot_adjustments(reference_points, reference_segments, target_points, target
         ]
 
         for key, pos in adjusted_points.items():
-            plt.scatter(pos[0], pos[1], color=color, label=f'{label} Adjusted Points' if key == list(adjusted_points.keys())[0] else "", alpha=0.7)
-            plt.text(pos[0] + 0.1, pos[1], key, fontsize=10)
+            plt.scatter(pos[0], pos[1], color=color, marker='o', label=f'{label} Adjusted Points' if key == list(adjusted_points.keys())[0] else "", alpha=0.7)
+            plt.text(pos[0] + 0.1, pos[1], key, fontsize=5)
 
         for i, segment_points in enumerate(adjusted_points_on_segments):
             for j, pos in enumerate(segment_points):
-                plt.scatter(pos[0], pos[1], color=color, label=f'{label} Adjusted Points on Segments' if i == 0 and j == 0 else "", alpha=0.7)
-                plt.text(pos[0] + 0.1, pos[1], f"S{i+1}_P{j+1}", fontsize=10)
+                plt.scatter(pos[0], pos[1], color=color, marker='d', label=f'{label} Adjusted Points on Segments' if i == 0 and j == 0 else "", alpha=0.7)
+                plt.text(pos[0] + 0.1, pos[1], f"S{i+1}_P{j+1}", fontsize=5)
 
     plt.title("Adjusted Points Across Scenarios", fontsize=16)
     plt.xlabel("X Coordinate", fontsize=14)
