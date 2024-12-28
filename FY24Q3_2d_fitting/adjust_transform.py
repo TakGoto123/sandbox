@@ -1,4 +1,5 @@
 from bundle_adjustment_2d import optimize_transformation, point_to_segment_distance
+from plot_results import plot_adjustments
 import numpy as np
 import pandas as pd
 import argparse
@@ -147,8 +148,9 @@ def display_results(translation, theta, scale, residual_dict, label="Results"):
         residual_dict (dict): Residuals for points and segments.
         label (str): Label for the parameter set (e.g., "Results").
     """
+    theta_degrees = np.degrees(theta)
     print(f"{label} Translation (dx, dy):", translation)
-    print(f"{label} Rotation (theta in radians):", theta)
+    print(f"{label} Rotation (theta in degrees):", theta_degrees)
     print(f"{label} Scale:", scale)
 
     residuals_df = pd.DataFrame(list(residual_dict.items()), columns=["Point/Segment", "Residual"])
@@ -163,6 +165,7 @@ def main():
     """
     parser = argparse.ArgumentParser(description="Run bundle adjustment with residual calculation.")
     parser.add_argument("yaml_file", type=str, help="Path to the YAML file containing input data.")
+    parser.add_argument("--plot_result", action="store_true", help="Generate and display plots for the results.")
     args = parser.parse_args()
 
     # Load data from YAML
@@ -177,15 +180,15 @@ def main():
     )
 
     # Optimization scenarios
-    scenarios = [
-        {"label": "Initial", "translation": False, "rotation": False, "scale": False},
-        {"label": "Translation Only", "translation": True, "rotation": False, "scale": False},
-        {"label": "Translation + Rotation", "translation": True, "rotation": True, "scale": False},
-        {"label": "Translation + Rotation + Scale", "translation": True, "rotation": True, "scale": True}
-    ]
+    scenarios = []
 
-    for scenario in scenarios:
-        if scenario["label"] == "Initial":
+    for label, optimize_translation, optimize_rotation, optimize_scale in [
+        ("Initial", False, False, False),
+        ("Translation Only", True, False, False),
+        ("Translation + Rotation", True, True, False),
+        ("Translation + Rotation + Scale", True, True, True)
+    ]:
+        if label == "Initial":
             # Use default parameters for "Initial"
             translation = np.array([0.0, 0.0])
             theta = 0.0
@@ -193,7 +196,7 @@ def main():
             residuals = calculate_residuals(
                 filtered_points, filtered_segments, translation, theta, scale
             )
-            display_results(translation, theta, scale, residuals, label=scenario["label"])
+            display_results(translation, theta, scale, residuals, label=label)
         else:
             # Optimize for the given scenario
             translation, theta, scale = optimize_transformation(
@@ -201,14 +204,45 @@ def main():
                 optimize_target_points,
                 optimize_segments,
                 optimize_target_points_on_segments,
-                optimize_translation=scenario["translation"],
-                optimize_rotation=scenario["rotation"],
-                optimize_scale=scenario["scale"]
+                optimize_translation=optimize_translation,
+                optimize_rotation=optimize_rotation,
+                optimize_scale=optimize_scale
             )
             residuals = calculate_residuals(
                 filtered_points, filtered_segments, translation, theta, scale
             )
-            display_results(translation, theta, scale, residuals, label=scenario["label"])
+            display_results(translation, theta, scale, residuals, label=label)
+
+        scenarios.append({
+            "label": label,
+            "reference_points": {key: value['reference_position'] for key, value in filtered_points.items()},
+            "reference_segments": [
+                (value['reference_segment']['start'], value['reference_segment']['end'])
+                for value in filtered_segments.values()
+            ],
+            "target_points": {key: value['target_position'] for key, value in filtered_points.items()},
+            "dx": translation[0],
+            "dy": translation[1],
+            "theta": theta,
+            "scale": scale
+        })
+
+    if args.plot_result:
+        plot_adjustments(
+            {key: value['reference_position'] for key, value in filtered_points.items()},
+            [
+                (value['reference_segment']['start'], value['reference_segment']['end'])
+                for value in filtered_segments.values()
+            ],
+            {key: value['target_position'] for key, value in filtered_points.items()},
+            [{
+                "dx": scenario['dx'],
+                "dy": scenario['dy'],
+                "theta": scenario['theta'],
+                "scale": scenario['scale'],
+                "label": scenario['label']
+            } for scenario in scenarios]
+        )
 
 if __name__ == "__main__":
     main()

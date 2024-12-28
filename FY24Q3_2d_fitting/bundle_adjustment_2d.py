@@ -48,20 +48,23 @@ def calculate_transformation_matrix(theta, scale):
     ])
     return rotation_matrix * scale
 
-def transform_points(points, dx, dy, transformation_matrix):
+def transform_points(points, transformation_matrix, centroid, dx, dy):
     """
-    Transform points based on given translation and a precomputed transformation matrix.
+    Transform points with rotation, scaling, and translation, centered on the centroid.
 
     Args:
         points (np.ndarray): Points to transform.
+        transformation_matrix (np.ndarray): Precomputed rotation and scaling matrix.
+        centroid (np.ndarray): Centroid of the points.
         dx (float): Translation in x-direction.
         dy (float): Translation in y-direction.
-        transformation_matrix (np.ndarray): Precomputed rotation and scaling matrix.
 
     Returns:
         np.ndarray: Transformed points.
     """
-    return (points @ transformation_matrix.T) + np.array([dx, dy])
+    centered_points = points - centroid
+    transformed_points = (centered_points @ transformation_matrix.T) + centroid + np.array([dx, dy])
+    return transformed_points
 
 def error_function(params, reference_points, target_points, reference_segments, target_points_on_segments, optimize_translation, optimize_rotation, optimize_scale, residuals=None):
     """
@@ -84,6 +87,18 @@ def error_function(params, reference_points, target_points, reference_segments, 
     param_idx = 0
     dx, dy, theta, scale = 0.0, 0.0, 0.0, 1.0
 
+    # Handle empty target points or segments gracefully
+    if len(target_points) == 0 and len(target_points_on_segments) == 0:
+        if residuals is not None:
+            residuals.extend([])
+        return 0.0
+
+    # Compute centroid of all target points, including target points on segments
+    all_target_points = [target_points] if len(target_points) > 0 else []
+    all_target_points.extend(target_points_on_segments)
+    all_target_points = np.vstack(all_target_points) if all_target_points else np.array([[0.0, 0.0]])
+    target_centroid = np.mean(all_target_points, axis=0)
+
     if optimize_translation:
         dx, dy = params[param_idx], params[param_idx + 1]
         param_idx += 2
@@ -93,26 +108,24 @@ def error_function(params, reference_points, target_points, reference_segments, 
     if optimize_scale:
         scale = params[param_idx]
 
+    # Precompute transformation matrix
     transformation_matrix = calculate_transformation_matrix(theta, scale)
 
-    # Handle empty target points
-    point_to_point_error = 0.0
-    point_to_point_residuals = []
-    if len(target_points) > 0:
-        transformed_target = transform_points(target_points, dx, dy, transformation_matrix)
-        point_to_point_residuals = np.linalg.norm(reference_points - transformed_target, axis=1)
-        point_to_point_error = np.sum(point_to_point_residuals ** 2)
+    # Transform target points
+    transformed_target_points = transform_points(target_points, transformation_matrix, target_centroid, dx, dy) if len(target_points) > 0 else np.array([])
 
-    # Handle empty target points on segments
+    # Compute point-to-point residuals
+    point_to_point_residuals = np.linalg.norm(reference_points - transformed_target_points, axis=1) if len(target_points) > 0 else []
+    point_to_point_error = np.sum(point_to_point_residuals ** 2) if len(target_points) > 0 else 0.0
+
+    # Compute point-to-segment residuals
     point_to_segment_residuals = []
-    point_to_segment_error = 0.0
-    if len(target_points_on_segments) > 0:
-        for segment, targets in zip(reference_segments, target_points_on_segments):
-            for target_point in targets:
-                transformed_target_point = transform_points(np.array([target_point]), dx, dy, transformation_matrix)[0]
-                dist = point_to_segment_distance(transformed_target_point, segment)
-                point_to_segment_residuals.append(dist)
-        point_to_segment_error = np.sum(np.array(point_to_segment_residuals) ** 2)
+    for segment, targets in zip(reference_segments, target_points_on_segments):
+        for target_point in targets:
+            transformed_target_point = transform_points(np.array([target_point]), transformation_matrix, target_centroid, dx, dy)[0]
+            dist = point_to_segment_distance(transformed_target_point, segment)
+            point_to_segment_residuals.append(dist)
+    point_to_segment_error = np.sum(np.array(point_to_segment_residuals) ** 2)
 
     if residuals is not None:
         residuals.extend(point_to_point_residuals)
@@ -141,6 +154,26 @@ def create_initial_params(optimize_translation, optimize_rotation, optimize_scal
         params.append(1.0)
     return params
 
+def adjust_to_original_frame(dx, dy, theta, scale, target_centroid):
+    """
+    Adjust the transformation parameters to the original frame.
+
+    Args:
+        dx (float): Translation in x-direction.
+        dy (float): Translation in y-direction.
+        theta (float): Rotation angle in radians.
+        scale (float): Scaling factor.
+        target_centroid (np.ndarray): Centroid of the target points.
+
+    Returns:
+        tuple: Adjusted [dx, dy], theta, scale.
+    """
+    # Translation adjustment based on the centroid
+    centroid_adjustment = -scale * calculate_transformation_matrix(theta, 1) @ target_centroid + target_centroid
+    adjusted_dx = dx + centroid_adjustment[0]
+    adjusted_dy = dy + centroid_adjustment[1]
+    return [adjusted_dx, adjusted_dy], theta, scale
+
 def optimize_transformation(reference_points, target_points, reference_segments, target_points_on_segments, optimize_translation=True, optimize_rotation=True, optimize_scale=True):
     """
     Optimize transformation parameters to align target data with reference data.
@@ -162,6 +195,11 @@ def optimize_transformation(reference_points, target_points, reference_segments,
     if len(initial_params) == 0:
         raise ValueError("No optimization parameters specified.")
 
+    all_target_points = [target_points] if len(target_points) > 0 else []
+    all_target_points.extend(target_points_on_segments)
+    all_target_points = np.vstack(all_target_points) if all_target_points else np.array([[0.0, 0.0]])
+    target_centroid = np.mean(all_target_points, axis=0)
+
     result = minimize(
         error_function,
         initial_params,
@@ -182,7 +220,7 @@ def optimize_transformation(reference_points, target_points, reference_segments,
     if optimize_scale:
         scale = optimal_params[params_index]
 
-    return [dx, dy], theta, scale
+    return adjust_to_original_frame(dx, dy, theta, scale, target_centroid)
 
 def main():
     """
