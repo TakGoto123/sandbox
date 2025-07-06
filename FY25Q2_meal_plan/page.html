@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>献立一覧</title>
+  <style>
+    table { border-collapse: collapse; margin-top: 20px; }
+    th, td { border: 1px solid #999; padding: 4px 8px; }
+    .week-selector { margin: 20px 0; }
+  </style>
+</head>
+<body>
+  <h1>献立一覧</h1>
+
+  <!-- 週切替 -->
+  <div class="week-selector">
+    <button onclick="changeWeek(-1)">&lt;</button>
+    <span id="weekDisplay"></span>
+    <button onclick="changeWeek(1)">&gt;</button>
+  </div>
+
+  <!-- 表表示 -->
+  <div id="mealTable"></div>
+
+  <script>
+    window.allData = JSON.parse('<?= JSON.stringify(data) ?>');
+    window.headers = JSON.parse('<?= JSON.stringify(headers) ?>');
+    console.log("allData", window.allData);
+    console.log("headers", window.headers);
+
+    // 現在の週の土曜日
+    let currentWeekStart = getDefaultWeekStart();
+
+    function getDefaultWeekStart() {
+      const today = new Date();
+      const day = today.getDay();
+      const saturday = new Date(today);
+      saturday.setDate(today.getDate() - ((day === 6) ? 0 : (day + 1) % 7));
+      return toDateString(saturday);
+    }
+
+    function getWeekDates(weekStartStr) {
+      const weekDates = [];
+      const start = new Date(weekStartStr);
+      for (let i = 2; i <= 6; i++) {
+        const d = new Date(start);
+        d.setDate(d.getDate() + i);
+        weekDates.push(toDateString(d));
+      }
+      return weekDates;
+    }
+
+    function toDateString(date) {
+      const y = date.getFullYear();
+      const m = ('0' + (date.getMonth() + 1)).slice(-2);
+      const d = ('0' + date.getDate()).slice(-2);
+      return `${y}-${m}-${d}`;
+    }
+
+    function changeWeek(offset) {
+      const d = new Date(currentWeekStart);
+      d.setDate(d.getDate() + (offset * 7));
+      currentWeekStart = toDateString(d);
+      renderTable();
+    }
+
+    function renderTable() {
+      console.log("renderTable called. currentWeekStart=", currentWeekStart);
+      const weekDates = getWeekDates(currentWeekStart);
+      document.getElementById('weekDisplay').textContent = `${weekDates[0]}〜${weekDates[weekDates.length - 1]}`;
+
+      // データをフィルタ
+      const weekData = {};
+      weekDates.forEach(date => {
+        weekData[date] = { '弁当': [], '夜': [] };
+      });
+
+      console.log("L78, allData:", window.allData)
+      console.log("L78, typeof window.allData:", typeof window.allData);
+      console.log("L78, Array.isArray(window.allData):", Array.isArray(window.allData));
+      window.allData.forEach(([dateRaw, type, menu, memo]) => {
+        console.log("hoge: ", dateRaw, type, menu, memo)
+        const dateStr = toDateString(new Date(dateRaw));
+        if (weekData[dateStr] && (type === '弁当' || type === '夜')) {
+          console.log("fuga: ", dateStr, type, menu, memo)
+          weekData[dateStr][type].push({ menu, memo });
+        }
+      });
+
+      // 表を作成
+      let html = '<table><tr>';
+      window.headers.forEach(h => { html += `<th>${h}</th>`; });
+      html += '</tr>';
+
+      weekDates.forEach(date => {
+        ['弁当', '夜'].forEach(type => {
+          const rows = weekData[date][type];
+          const rowspan = rows.length || 1;
+          let firstRow = true;
+
+          (rows.length ? rows : [{}]).forEach(row => {
+            html += '<tr>';
+            if (firstRow) {
+              html += `<td rowspan="${rowspan}">${date}</td><td rowspan="${rowspan}">${type}</td>`;
+              firstRow = false;
+            }
+            html += `<td>${row.menu || ''}</td><td>${row.memo || ''}</td></tr>`;
+          });
+        });
+      });
+
+      html += '</table>';
+      document.getElementById('mealTable').innerHTML = html;
+    }
+
+    window.onload = renderTable;
+  </script>
+</body>
+</html>
