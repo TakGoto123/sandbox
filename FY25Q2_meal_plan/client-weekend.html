@@ -1,0 +1,804 @@
+<script>
+  /**
+   * Weekend買い物リスト管理クラス
+   * 非同期処理、楽観的更新、競合解決機能を含む
+   */
+  class WeekendManager {
+    constructor() {
+      this.serverState = new Map(); // サーバーの最新状態
+      this.serverHash = ""; // サーバーのデータハッシュ
+      this.localState = new Map(); // ローカルの変更
+      this.pollInterval = null;
+      this.isOnline = true;
+      this.retryCount = 0;
+      this.maxRetries = 3;
+      this.isInitialized = false;
+    }
+
+    /**
+     * Weekend管理システムを初期化
+     */
+    async initialize() {
+      console.log('=== WeekendManager初期化開始 ===');
+      this.updateStatus('初期化中...', 'syncing');
+      
+      try {
+        console.log('loadInitialData開始');
+        await this.loadInitialData();
+        console.log('loadInitialData完了');
+        
+        console.log('startPolling開始');
+        this.startPolling();
+        console.log('startPolling完了');
+        
+        this.updateStatus('オンライン', 'online');
+        this.isInitialized = true;
+        console.log('=== WeekendManager初期化完了 ===');
+      } catch (error) {
+        console.error('=== WeekendManager初期化エラー ===', error);
+        this.updateStatus('オフライン', 'offline');
+        UIUtils.showNotification('Weekend機能の初期化に失敗しました', 'error');
+        
+        // エラーが発生してもポーリングは開始する
+        console.log('エラー後のポーリング開始を試行');
+        this.startPolling();
+      }
+    }
+
+    /**
+     * 初期データを読み込み
+     */
+    async loadInitialData() {
+      const weekStart = appState.getCurrentWeekStart();
+      const data = await this.callServer('getWeekendItemsForApp', weekStart);
+      console.log("Debug: data = ", JSON.stringify(data));
+      this.updateServerState(data);
+      this.renderList();
+      
+      // ローディング表示を隠す
+      const weekendList = document.getElementById('weekendList');
+      if (weekendList && weekendList.classList.contains('loading')) {
+        weekendList.classList.remove('loading');
+      }
+    }
+
+    /**
+     * ポーリングを開始
+     * @param {number} interval - ポーリング間隔（ミリ秒）
+     */
+    startPolling(interval = 3000) {
+      console.log("=== startPolling called ===");
+      console.log("interval:", interval);
+      
+      // 既存のポーリングを停止
+      if (this.pollInterval) {
+        console.log("既存のポーリングを停止");
+        clearInterval(this.pollInterval);
+      }
+      
+      // 新しいポーリングを開始
+      console.log("新しいポーリングを開始");
+      this.pollInterval = setInterval(() => {
+        console.log("ポーリング実行中...");
+        this.lightweightCheck();
+      }, interval);
+      
+      console.log("ポーリング設定完了");
+      
+      // 即座に1回実行
+      setTimeout(() => {
+        console.log("初回ポーリング実行");
+        this.lightweightCheck();
+      }, 1000);
+
+      // visibilitychangeイベントの設定
+      this.setupVisibilityHandler();
+    }
+
+    /**
+     * ページの表示/非表示に応じてポーリング間隔を調整
+     */
+    setupVisibilityHandler() {
+      console.log('visibilitychangeイベントハンドラー設定');
+      
+      document.addEventListener('visibilitychange', () => {
+        console.log(`Visibility changed: ${document.hidden ? 'hidden' : 'visible'}`);
+        
+        if (document.hidden) {
+          console.log('バックグラウンド: 1分間隔に変更');
+          if (this.pollInterval) {
+            clearInterval(this.pollInterval);
+          }
+          this.pollInterval = setInterval(() => {
+            console.log('バックグラウンドポーリング実行');
+            this.lightweightCheck();
+          }, 60000); // 1分間隔
+        } else {
+          console.log('フォアグラウンド: 3秒間隔に変更');
+          if (this.pollInterval) {
+            clearInterval(this.pollInterval);
+          }
+          this.pollInterval = setInterval(() => {
+            console.log('フォアグラウンドポーリング実行');
+            this.lightweightCheck();
+          }, 3000); // 3秒間隔
+          
+          // 即座に実行
+          setTimeout(() => {
+            console.log('フォアグラウンド復帰時の即座チェック');
+            this.lightweightCheck();
+          }, 100);
+        }
+      });
+    }
+
+    /**
+     * 軽量なサーバーチェック（改善版）
+     */
+    async lightweightCheck() {
+      try {
+        const weekStart = appState.getCurrentWeekStart();
+        const result = await this.callServer('getWeekendDataIfChangedForApp', 
+          weekStart, this.serverHash || '');
+        
+        console.log(`Hash check result: changed=${result.changed}, hash=${result.hash}`);
+        
+        if (result.changed) {
+          console.log('データ変更を検知、表を全更新');
+          this.updateStatus('同期中...', 'syncing');
+          
+          // サーバー状態を更新
+          this.updateServerState({
+            items: result.items,
+            hash: result.hash
+          });
+          
+          // 表全体を再描画
+          this.renderList();
+          this.updateStatus('同期完了', 'online');
+          
+          // リモート更新の通知
+          if (this.serverHash && this.serverHash !== result.hash) {
+            UIUtils.showNotification('データが更新されました', 'info');
+          }
+        }
+        
+        this.serverHash = result.hash;
+        this.isOnline = true;
+        this.retryCount = 0;
+        
+      } catch (error) {
+        console.error('ポーリング失敗:', error);
+        this.handleConnectionError();
+      }
+    }
+
+
+    /**
+     * アイテムのステータスを更新（楽観的更新）
+     * @param {number} id - アイテムID
+     * @param {string} field - 更新するフィールド
+     * @param {boolean} value - 新しい値
+     */
+    async updateItemStatus(id, field, value) {
+      if (field !== 'done' && field !== 'unnecessary') {
+        throw new Error('Invalid field: ', field);
+      }
+
+      // 楽観的更新
+      const clientTimestamp = new Date().toISOString();
+      this.localState.set(clientTimestamp, {id: id, field: field, value: value});
+      this.renderList();
+      this.markAsPending(id);
+      
+      // バックグラウンドでサーバー送信
+      try {
+        // UI上で送信中状態を表示
+        
+        const weekStart = appState.getCurrentWeekStart();
+        const result = await this.callServer('updateWeekendItemStatusForApp',
+          weekStart, id, field, value, this.serverHash);
+        
+
+        if (result.conflict === true) {
+          this.localState.delete(clientTimestamp);
+          this.updateServerState(result);
+          this.renderList();
+          UIUtils.showNotification('データ更新：競合が発生したため、画面を更新しました', 'error');
+        } else {
+          this.serverState.get(id)[field] = value;
+          this.serverHash = result.hash;
+          this.localState.delete(clientTimestamp);
+          UIUtils.showNotification('データ更新：成功', 'info');
+        }
+      } catch (error) {
+        this.localState.delete(clientTimestamp);
+        this.renderList();
+        UIUtils.showNotification('データ更新：更新に失敗しました: ' + error.message, 'error');
+      }
+
+      this.clearPendingState(id);
+    }
+
+    /**
+     * 送信中状態をマーク
+     * @param {number} id - アイテムID
+     */
+    markAsPending(id) {
+      const element = document.querySelector(`[data-item-id="${id}"]`);
+      if (element) {
+        element.classList.add('pending-update');
+      }
+    }
+
+    /**
+     * 送信中状態をクリア
+     * @param {number} id - アイテムID
+     */
+    clearPendingState(id) {
+      const element = document.querySelector(`[data-item-id="${id}"]`);
+      if (element) {
+        element.classList.remove('pending-update');
+      }
+    }
+
+    /**
+     * リモート変更のUI更新
+     * @param {Object} change - 変更オブジェクト
+     */
+    updateUIForRemoteChange(change) {
+      const element = document.querySelector(`[data-item-id="${change.id}"]`);
+      if (element) {
+        // リモート更新のハイライト
+        element.classList.add('remote-updated');
+        
+        // チェックボックス状態を更新
+        const doneCheckbox = element.querySelector('.done-checkbox');
+        const unnecessaryCheckbox = element.querySelector('.unnecessary-checkbox');
+        
+        if (doneCheckbox) doneCheckbox.checked = change.done;
+        if (unnecessaryCheckbox) unnecessaryCheckbox.checked = change.unnecessary;
+        
+        // テキスト装飾の更新
+        const textElement = element.querySelector('.item-text');
+        if (textElement) {
+          if (change.done) {
+            textElement.classList.add('done');
+          } else {
+            textElement.classList.remove('done');
+          }
+        }
+        
+        // 3秒後にハイライト削除
+        setTimeout(() => {
+          element.classList.remove('remote-updated');
+        }, 3000);
+        
+        UIUtils.showNotification('他のユーザーが更新しました', 'info');
+      }
+    }
+
+    /**
+     * 競合解決のUI更新
+     * @param {Object} change - 変更オブジェクト
+     * @param {string} type - 解決タイプ
+     */
+    updateUIForConflictResolution(change, type) {
+      const element = document.querySelector(`[data-item-id="${change.id}"]`);
+      if (element) {
+        element.classList.add('conflict-resolved');
+        
+        // 状態を正しい値に更新
+        const doneCheckbox = element.querySelector('.done-checkbox');
+        const unnecessaryCheckbox = element.querySelector('.unnecessary-checkbox');
+        
+        if (doneCheckbox) doneCheckbox.checked = change.done;
+        if (unnecessaryCheckbox) unnecessaryCheckbox.checked = change.unnecessary;
+        
+        setTimeout(() => {
+          element.classList.remove('conflict-resolved');
+        }, 5000);
+      }
+    }
+
+    /**
+     * 接続エラーを処理
+     */
+    handleConnectionError() {
+      this.isOnline = false;
+      this.retryCount++;
+      
+      if (this.retryCount <= this.maxRetries) {
+        this.updateStatus(`再接続中... (${this.retryCount}/${this.maxRetries})`, 'syncing');
+      } else {
+        this.updateStatus('オフライン', 'offline');
+        UIUtils.showNotification('サーバーとの接続が失われました', 'error');
+      }
+    }
+
+    /**
+     * サーバー状態を更新
+     * @param data - アイテムのリスト
+     */
+    updateServerState(data) {
+      this.serverState.clear();
+      data.items.forEach(item => {
+        this.serverState.set(item.ID, item);
+      });
+      this.serverHash = data.hash;
+    }
+
+    /**
+     * 週末の買い物リストを表示するようのデータを作成する
+     * ローカルの変更がない場合は、サーバーのデータを参照渡しする
+     */
+    computeStateToDisplay() {
+      // Create UiState merging this.localState to this.serverState
+      const now = Date.now();
+      const thresholdMs = 5000;
+      for (const [key, value] of this.localState) {
+        const time = new Date(key).getTime();
+        if (now - time > thresholdMs) {
+          console.warn("An item of local state has beend deleted.");
+          UIUtils.showNotification('サーバーのデータ更新に失敗しました', 'info');
+          this.localState.delete(key);
+        }
+      }
+
+      if (this.localState.size === 0) {
+        return this.serverState;
+      } else {
+        let uiState = structuredClone(this.serverState);
+        for (const [key, value] of this.localState) {
+          uiState.get(value.id)[value.field] = value.value;
+        }
+        return uiState;
+      }
+    }
+
+    /**
+     * Weekendリストを描画
+     */
+    renderList() {
+      const weekendListElement = document.getElementById('weekendList');
+      if (!weekendListElement) {
+        console.error('weekendList element not found');
+        return;
+      }
+      
+      const itemMap = this.computeStateToDisplay();
+      const items = Array.from(itemMap.values());
+      if (!items || items.length === 0) {
+        weekendListElement.innerHTML = '<div class="weekend-empty">この週のWeekendデータはありません</div>';
+        return;
+      }
+      
+      // カテゴリ別にグループ化
+      const grouped = {};
+      const unnecessary = [];
+      
+      items.forEach(item => {
+        if (item.unnecessary) {
+          unnecessary.push(item);
+        } else {
+          if (!grouped[item.category]) {
+            grouped[item.category] = [];
+          }
+          grouped[item.category].push(item);
+        }
+      });
+      
+      let html = '';
+      
+      // 必要なアイテムをカテゴリ別に表示
+      for (const category in grouped) {
+        html += `
+          <div class="weekend-section">
+            <h3>${UIUtils.escapeHtml(category)}</h3>
+            <div class="weekend-items">
+        `;
+        
+        grouped[category].forEach(item => {
+          const itemClass = item.done ? 'weekend-item done' : 'weekend-item';
+          html += `
+            <div class="${itemClass}" data-item-id="${item.ID}">
+              <label class="checkbox-container">
+                <input type="checkbox" class="weekend-checkbox done-checkbox" 
+                       ${item.done ? 'checked' : ''} 
+                       onchange="weekendManager.updateItemStatus(${item.ID}, 'done', this.checked)">
+                <span class="checkbox-label">✓</span>
+              </label>
+              
+              <span class="item-text">${UIUtils.escapeHtml(item.item)}</span>
+              
+              <label class="checkbox-container">
+                <input type="checkbox" class="weekend-checkbox unnecessary-checkbox" 
+                       ${item.unnecessary ? 'checked' : ''} 
+                       onchange="weekendManager.updateItemStatus(${item.ID}, 'unnecessary', this.checked)">
+                <span class="checkbox-label">✗</span>
+              </label>
+            </div>
+          `;
+        });
+        
+        html += `
+            </div>
+          </div>
+        `;
+      }
+      
+      // 不要なアイテムを表示
+      if (unnecessary.length > 0) {
+        html += `
+          <div class="unnecessary-section">
+            <h2>不要なもの</h2>
+            <div class="unnecessary-items">
+        `;
+        
+        unnecessary.forEach(item => {
+          html += `
+            <div class="weekend-item" data-item-id="${item.ID}">
+              <label class="checkbox-container">
+                <input type="checkbox" class="weekend-checkbox done-checkbox" 
+                       ${item.done ? 'checked' : ''} 
+                       onchange="weekendManager.updateItemStatus(${item.ID}, 'done', this.checked)">
+                <span class="checkbox-label">✓</span>
+              </label>
+              
+              <span class="item-text">${UIUtils.escapeHtml(item.item)}</span>
+              
+              <label class="checkbox-container">
+                <input type="checkbox" class="weekend-checkbox unnecessary-checkbox" 
+                       checked 
+                       onchange="weekendManager.updateItemStatus(${item.ID}, 'unnecessary', this.checked)">
+                <span class="checkbox-label">✗</span>
+              </label>
+            </div>
+          `;
+        });
+        
+        html += `
+            </div>
+          </div>
+        `;
+      }
+      
+      weekendListElement.innerHTML = html;
+    }
+
+    /**
+     * ステータスを更新
+     * @param {string} text - ステータステキスト
+     * @param {string} type - ステータスタイプ
+     */
+    updateStatus(text, type) {
+      // アプリケーション状態を更新
+      appState.setOnlineStatus(type === 'online');
+      
+      // 必要に応じてステータス表示を更新
+      console.log(`Weekend Status: ${text} (${type})`);
+    }
+
+    /**
+     * サーバー関数を呼び出し
+     * @param {string} method - メソッド名
+     * @param {...any} args - 引数
+     * @returns {Promise} プロミス
+     */
+    callServer(method, ...args) {
+      return new Promise((resolve, reject) => {
+        google.script.run
+          .withSuccessHandler(resolve)
+          .withFailureHandler(reject)
+          [method](...args);
+      });
+    }
+
+    /**
+     * クリーンアップ
+     */
+    destroy() {
+      if (this.pollInterval) {
+        clearInterval(this.pollInterval);
+      }
+    }
+  }
+
+  // グローバルインスタンス
+  let weekendManager = null;
+
+  /**
+   * Weekend機能を表示
+   */
+  function showWeekend() {
+    console.log('Switching to weekend page');
+    appState.setCurrentPage('weekend');
+    
+    // タブの状態を更新
+    document.getElementById('mealTab').classList.remove('active');
+    document.getElementById('weekendTab').classList.add('active');
+    
+    // ページタイトルを更新
+    document.getElementById('pageTitle').textContent = 'Weekend - 買い物リスト';
+    
+    // コンテンツエリアの表示を切り替え
+    document.getElementById('mealContent').style.display = 'none';
+    document.getElementById('weekendContent').style.display = 'block';
+    
+    // 買い出しリストボタンを非表示
+    const shoppingSection = document.getElementById('shoppingListSection');
+    if (shoppingSection) {
+      shoppingSection.style.display = 'none';
+    }
+    
+    // WeekendManagerを初期化（まだ初期化されていない場合）
+    if (!weekendManager) {
+      weekendManager = new WeekendManager();
+      window.weekendManager = weekendManager; // グローバルアクセス用
+    }
+    
+    // 初期化されていない場合は初期化
+    if (!weekendManager.isInitialized) {
+      weekendManager.initialize();
+    } else {
+      // 既に初期化済みの場合はデータを再読み込み
+      weekendManager.loadInitialData();
+    }
+  }
+
+  /**
+   * サンプルデータを作成
+   */
+  async function createWeekendSampleData() {
+    if (!weekendManager) {
+      UIUtils.showNotification('WeekendManagerが初期化されていません', 'error');
+      return;
+    }
+
+    try {
+      const weekStart = appState.getCurrentWeekStart();
+      const result = await weekendManager.callServer('createWeekendSampleData', weekStart);
+      
+      if (result.success) {
+        UIUtils.showNotification('サンプルデータを作成しました', 'success');
+        // データを再読み込み
+        await weekendManager.loadInitialData();
+      } else {
+        UIUtils.showNotification('サンプルデータの作成に失敗しました: ' + result.message, 'error');
+      }
+    } catch (error) {
+      UIUtils.showNotification('エラー: ' + error.message, 'error');
+    }
+  }
+
+  // Weekend用のCSSスタイルを追加
+  if (!document.getElementById('weekend-manager-styles')) {
+    const style = document.createElement('style');
+    style.id = 'weekend-manager-styles';
+    style.textContent = `
+      /* カテゴリ背景色の定義 - 濃い色で白文字用 */
+      .weekend-section:nth-child(4n+1) { background: #4a5568; }
+      .weekend-section:nth-child(4n+2) { background: #2d3748; }
+      .weekend-section:nth-child(4n+3) { background: #2b6cb0; }
+      .weekend-section:nth-child(4n+4) { background: #38a169; }
+      
+      .weekend-section {
+        margin: 0;
+        padding: 2px 4px;
+        border: 1px solid #e0e0e0;
+        border-radius: 3px;
+        box-shadow: 0 1px 2px rgba(0,0,0,0.03);
+      }
+      
+      .weekend-section h3 {
+        margin: 0;
+        color: white;
+        font-size: 2.2em;
+        font-weight: 600;
+        padding: 1px 2px;
+        text-shadow: 0 1px 2px rgba(0,0,0,0.3);
+      }
+      
+      .weekend-item {
+        display: flex;
+        align-items: center;
+        margin: 0;
+        padding: 2px 3px;
+        background: rgba(255,255,255,0.9);
+        border-radius: 2px;
+        transition: all 0.2s ease;
+        min-height: 44px; /* タッチフレンドリー */
+        word-wrap: break-word;
+        overflow-wrap: break-word;
+      }
+      
+      .weekend-item:hover {
+        background: rgba(255,255,255,1);
+        box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+      }
+      
+      .weekend-item.done .item-text {
+        text-decoration: line-through;
+        color: #888;
+      }
+      
+      .weekend-checkbox {
+        margin-right: 2px;
+        width: 24px;
+        height: 24px;
+        cursor: pointer;
+        flex-shrink: 0;
+      }
+      
+      .checkbox-container {
+        display: flex;
+        align-items: center;
+        cursor: pointer;
+        padding: 1px 3px;
+        border-radius: 2px;
+        transition: background-color 0.2s ease;
+        min-width: 44px;
+        min-height: 44px;
+        justify-content: center;
+        flex-shrink: 0;
+      }
+      
+      .checkbox-container:hover {
+        background-color: rgba(0,0,0,0.05);
+      }
+      
+      .checkbox-container:active {
+        background-color: rgba(0,0,0,0.1);
+      }
+      
+      .checkbox-label {
+        margin-left: 1px;
+        font-size: 32px;
+        color: #666;
+        white-space: nowrap;
+        flex-shrink: 0;
+        user-select: none;
+      }
+      
+      .item-text {
+        flex: 1;
+        margin: 0 8px;
+        font-size: 28px;
+        line-height: 1.1;
+        word-break: break-word;
+        overflow-wrap: break-word;
+      }
+      
+      .weekend-empty {
+        text-align: center;
+        padding: 20px;
+        color: #666;
+        font-style: italic;
+      }
+      
+      .unnecessary-section {
+        background: #6b7280 !important;
+        border-color: #ccc;
+        margin-top: 0;
+        margin: 0;
+        padding: 2px 4px;
+        border: 1px solid #e0e0e0;
+        border-radius: 3px;
+        box-shadow: 0 1px 2px rgba(0,0,0,0.03);
+      }
+      
+      .unnecessary-section h2 {
+        color: white;
+        margin: 0;
+        font-size: 2.2em;
+        font-weight: 600;
+        padding: 1px 2px;
+        text-shadow: 0 1px 2px rgba(0,0,0,0.3);
+      }
+      
+      /* 楽観的更新とポーリング関連のスタイル */
+      .remote-updated {
+        background-color: #e3f2fd !important;
+        border-left: 3px solid #2196f3;
+        animation: remoteUpdate 0.5s ease;
+      }
+      
+      @keyframes remoteUpdate {
+        0% { background-color: #bbdefb; }
+        100% { background-color: #e3f2fd; }
+      }
+      
+      .conflict-resolved {
+        background-color: #fff3e0 !important;
+        border-left: 3px solid #ff9800;
+      }
+      
+      .pending-update {
+        opacity: 0.7;
+        position: relative;
+      }
+      
+      .pending-update::after {
+        content: "⏳";
+        position: absolute;
+        right: 5px;
+        top: 50%;
+        transform: translateY(-50%);
+        font-size: 14px;
+      }
+      
+      .error-state {
+        background-color: #ffebee !important;
+        border-left: 3px solid #f44336;
+      }
+      
+      /* スマホ対応 */
+      @media (max-width: 480px) {
+        .weekend-section {
+          margin-bottom: 0;
+          padding: 4px 6px;
+        }
+        
+        .weekend-section h3 {
+          font-size: 0.9em;
+          margin-bottom: 2px;
+          padding: 1px 0;
+        }
+        
+        .weekend-item {
+          flex-direction: column;
+          align-items: flex-start;
+          padding: 6px;
+          min-height: auto;
+          margin: 1px 0;
+        }
+        
+        .item-text {
+          width: 100%;
+          margin: 0 0 4px 0;
+          font-size: 14px;
+          line-height: 1.3;
+        }
+        
+        .checkbox-container {
+          min-width: 40px;
+          min-height: 40px;
+          padding: 1px 4px;
+        }
+        
+        .weekend-checkbox {
+          width: 18px;
+          height: 18px;
+        }
+        
+        .checkbox-label {
+          font-size: 14px;
+          margin-left: 1px;
+        }
+      }
+      
+      /* 極小画面対応 */
+      @media (max-width: 320px) {
+        .weekend-section {
+          padding: 3px 4px;
+        }
+        
+        .weekend-item {
+          padding: 4px;
+        }
+        
+        .checkbox-container {
+          min-width: 36px;
+          min-height: 36px;
+        }
+        
+        .checkbox-label {
+          font-size: 12px;
+        }
+      }
+    `;
+    document.head.appendChild(style);
+  }
+
+  console.log('Weekend manager loaded successfully');
+</script>

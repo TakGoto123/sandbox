@@ -1,0 +1,315 @@
+<script>
+  /**
+   * アプリケーション制御クラス
+   * 初期化、ページ切り替え、イベントハンドラー設定を管理
+   */
+  class AppController {
+    constructor() {
+      this.isInitialized = false;
+      this.mealPlanApp = null;
+      this.weekendManager = null;
+    }
+
+    /**
+     * アプリケーション全体を初期化
+     * @param {Array} headers - ヘッダー配列
+     * @param {Array} data - データ配列
+     * @param {Object} config - 設定オブジェクト
+     */
+    async initialize(headers, data, config) {
+      if (this.isInitialized) {
+        console.log('AppController already initialized');
+        return;
+      }
+
+      console.log('=== AppController初期化開始 ===');
+      
+      try {
+        // 共通ユーティリティの確認
+        if (typeof WeekManager === 'undefined' || typeof UIUtils === 'undefined' || typeof appState === 'undefined') {
+          throw new Error('共通ユーティリティが読み込まれていません');
+        }
+
+        // 献立アプリケーションを初期化
+        console.log('献立アプリケーション初期化中...');
+        this.mealPlanApp = initializeMealPlanApp(headers, data, config);
+        
+        if (!this.mealPlanApp) {
+          throw new Error('献立アプリケーションの初期化に失敗しました');
+        }
+
+        // グローバル参照を設定
+        window.mealPlanAppInstance = this.mealPlanApp;
+
+        // イベントハンドラーを設定
+        this.setupEventHandlers();
+
+        // 初期ページを表示
+        this.showInitialPage();
+
+        this.isInitialized = true;
+        console.log('=== AppController初期化完了 ===');
+
+      } catch (error) {
+        console.error('=== AppController初期化エラー ===', error);
+        UIUtils.showError('アプリケーションの初期化に失敗しました: ' + error.message, 'mealTable');
+        throw error;
+      }
+    }
+
+    /**
+     * イベントハンドラーを設定
+     */
+    setupEventHandlers() {
+      console.log('イベントハンドラー設定中...');
+
+      // アプリケーション状態の変更を監視
+      appState.subscribe('currentPage', (newPage, oldPage) => {
+        console.log(`Page changed: ${oldPage} -> ${newPage}`);
+        this.handlePageChange(newPage);
+      });
+
+      appState.subscribe('currentWeekStart', (newWeekStart, oldWeekStart) => {
+        console.log(`Week changed: ${oldWeekStart} -> ${newWeekStart}`);
+        this.handleWeekChange(newWeekStart);
+      });
+
+      // ページの可視性変更を監視
+      document.addEventListener('visibilitychange', () => {
+        this.handleVisibilityChange();
+      });
+
+      // ウィンドウのアンロード時のクリーンアップ
+      window.addEventListener('beforeunload', () => {
+        this.cleanup();
+      });
+
+      console.log('イベントハンドラー設定完了');
+    }
+
+    /**
+     * 初期ページを表示
+     */
+    showInitialPage() {
+      // デフォルトで献立ページを表示
+      this.switchToPage('meal');
+    }
+
+    /**
+     * ページを切り替え
+     * @param {string} pageName - ページ名 ('meal' または 'weekend')
+     */
+    switchToPage(pageName) {
+      console.log(`Switching to page: ${pageName}`);
+      
+      if (pageName === 'meal') {
+        showMealPlan();
+      } else if (pageName === 'weekend') {
+        showWeekend();
+      } else {
+        console.error('Unknown page:', pageName);
+        UIUtils.showNotification('不明なページです: ' + pageName, 'error');
+      }
+    }
+
+    /**
+     * 週を変更
+     * @param {number} offset - 週のオフセット（-1: 前週, 1: 次週）
+     */
+    changeWeek(offset) {
+      console.log('changeWeek called with offset:', offset);
+      
+      const currentPage = appState.getCurrentPage();
+      
+      if (currentPage === 'meal' && this.mealPlanApp) {
+        console.log('Calling changeWeek on meal plan app');
+        this.mealPlanApp.changeWeek(offset);
+      } else if (currentPage === 'weekend' && this.weekendManager) {
+        console.log('Calling changeWeek on weekend manager');
+        // WeekendManagerの週変更処理
+        const newWeekStart = WeekManager.calculateNewWeekStart(appState.getCurrentWeekStart(), offset);
+        appState.setCurrentWeekStart(newWeekStart);
+        this.weekendManager.loadInitialData();
+      } else {
+        console.error('No active app instance found for page:', currentPage);
+      }
+    }
+
+    /**
+     * ページ変更を処理
+     * @param {string} newPage - 新しいページ
+     */
+    handlePageChange(newPage) {
+      // 必要に応じて追加の処理を実行
+      console.log(`Handling page change to: ${newPage}`);
+      
+      if (newPage === 'weekend' && !this.weekendManager) {
+        // WeekendManagerの参照を取得
+        this.weekendManager = window.weekendManager;
+      }
+    }
+
+    /**
+     * 週変更を処理
+     * @param {string} newWeekStart - 新しい週開始日
+     */
+    handleWeekChange(newWeekStart) {
+      console.log(`Handling week change to: ${newWeekStart}`);
+      
+      // 週表示を更新
+      const weekDisplayElement = document.getElementById('weekDisplay');
+      if (weekDisplayElement) {
+        const currentPage = appState.getCurrentPage();
+        if (currentPage === 'meal' && this.mealPlanApp) {
+          const weekDates = WeekManager.getWeekDates(newWeekStart, this.mealPlanApp.config?.WORK_DAYS);
+          weekDisplayElement.textContent = WeekManager.formatWeekDisplay(weekDates);
+        } else {
+          // 基本的な週表示
+          const weekDates = WeekManager.getWeekDates(newWeekStart);
+          weekDisplayElement.textContent = WeekManager.formatWeekDisplay(weekDates);
+        }
+      }
+    }
+
+    /**
+     * ページの可視性変更を処理
+     */
+    handleVisibilityChange() {
+      const isHidden = document.hidden;
+      console.log(`Page visibility changed: ${isHidden ? 'hidden' : 'visible'}`);
+      
+      // WeekendManagerがアクティブな場合は、ポーリング間隔を調整
+      if (this.weekendManager && this.weekendManager.isInitialized) {
+        // WeekendManager内でvisibilitychangeイベントを処理するため、ここでは何もしない
+        console.log('WeekendManager will handle visibility change');
+      }
+    }
+
+    /**
+     * サーバーから渡されたJSONデータを安全にパース
+     * @param {string} jsonString - JSON文字列
+     * @returns {*} パースされたデータ
+     */
+    static parseServerData(jsonString) {
+      try {
+        return JSON.parse(jsonString);
+      } catch (error) {
+        console.error('JSON parse error:', error);
+        return null;
+      }
+    }
+
+    /**
+     * クリーンアップ処理
+     */
+    cleanup() {
+      console.log('AppController cleanup');
+      
+      if (this.weekendManager) {
+        this.weekendManager.destroy();
+      }
+      
+      // その他のクリーンアップ処理
+    }
+
+    /**
+     * アプリケーションの状態を取得
+     * @returns {Object} アプリケーション状態
+     */
+    getAppStatus() {
+      return {
+        isInitialized: this.isInitialized,
+        currentPage: appState.getCurrentPage(),
+        currentWeekStart: appState.getCurrentWeekStart(),
+        isOnline: appState.isOnline,
+        mealPlanAppReady: !!this.mealPlanApp,
+        weekendManagerReady: !!this.weekendManager && this.weekendManager.isInitialized
+      };
+    }
+  }
+
+  // グローバルインスタンス
+  let appController = null;
+
+  /**
+   * アプリケーション初期化関数（main.htmlから呼び出される）
+   * @param {string} headersJson - ヘッダーのJSON文字列
+   * @param {string} dataJson - データのJSON文字列
+   * @param {string} configJson - 設定のJSON文字列
+   */
+  function initializeApp(headersJson, dataJson, configJson) {
+    console.log('=== アプリケーション初期化開始 ===');
+    
+    try {
+      // JSON文字列をパース
+      const headers = AppController.parseServerData(headersJson);
+      const data = AppController.parseServerData(dataJson);
+      const config = AppController.parseServerData(configJson);
+
+      console.log('Parsed data:', { headers, dataCount: data?.length, config });
+
+      // AppControllerを初期化
+      if (!appController) {
+        appController = new AppController();
+        window.appController = appController; // グローバルアクセス用
+      }
+
+      // アプリケーションを初期化
+      appController.initialize(headers, data, config);
+
+    } catch (error) {
+      console.error('=== アプリケーション初期化エラー ===', error);
+      UIUtils.showError('アプリケーションの初期化に失敗しました: ' + error.message, 'mealTable');
+    }
+  }
+
+  /**
+   * 週変更のグローバル関数（後方互換性のため）
+   * @param {number} offset - 週のオフセット
+   */
+  function changeWeek(offset) {
+    if (appController) {
+      appController.changeWeek(offset);
+    } else {
+      console.error('AppController not initialized');
+      UIUtils.showNotification('アプリケーションが初期化されていません', 'error');
+    }
+  }
+
+  /**
+   * ページ切り替えのグローバル関数
+   * @param {string} pageName - ページ名
+   */
+  function switchPage(pageName) {
+    if (appController) {
+      appController.switchToPage(pageName);
+    } else {
+      console.error('AppController not initialized');
+      UIUtils.showNotification('アプリケーションが初期化されていません', 'error');
+    }
+  }
+
+  /**
+   * アプリケーション状態を取得するグローバル関数
+   * @returns {Object} アプリケーション状態
+   */
+  function getAppStatus() {
+    if (appController) {
+      return appController.getAppStatus();
+    } else {
+      return {
+        isInitialized: false,
+        error: 'AppController not initialized'
+      };
+    }
+  }
+
+  // DOM読み込み完了時の処理
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', () => {
+      console.log('DOM loaded, waiting for server data...');
+    });
+  }
+
+  console.log('App controller loaded successfully');
+</script>

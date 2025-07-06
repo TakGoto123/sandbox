@@ -1,0 +1,6 @@
+- 勝手にgit commitはしない
+- commitしてと言われたら
+ - git commitを実施する
+ - 英語でcommitを作る
+ - タイトルは"meal_plan: "から始める
+ - 内容を完結にまとめる

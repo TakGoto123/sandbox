@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>献立一覧</title>
+  <?!= include('client-styles'); ?>
+</head>
+<body>
+  <?!= include('client-layout'); ?>
+  <?!= include('client-modal'); ?>
+  
+  <!-- 共通ユーティリティ -->
+  <?!= include('client-utils'); ?>
+  
+  <!-- 献立管理機能 -->
+  <?!= include('client-meal'); ?>
+  
+  <!-- Weekend管理機能 -->
+  <?!= include('client-weekend'); ?>
+  
+  <!-- アプリケーション制御 -->
+  <?!= include('client-app'); ?>
+
+<script>
+// メインアプリケーション初期化
+function initializeMainApp() {
+  console.log('=== メインアプリケーション初期化 ===');
+
+  // サーバーから渡されたデータを取得
+  const headersJson = '<?= JSON.stringify(headers) ?>';
+  const dataJson = '<?= JSON.stringify(data) ?>';
+  const configJson = '<?= JSON.stringify(config) ?>';
+
+  console.log('Server data received, initializing AppController...');
+  
+  // AppControllerを通じて初期化
+  initializeApp(headersJson, dataJson, configJson);
+}
+
+// ページ読み込み完了時に初期化
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', initializeMainApp);
+} else {
+  // すでに読み込み完了している場合は即座に実行
+  initializeMainApp();
+}
+</script>
+
+</body>
+</html>

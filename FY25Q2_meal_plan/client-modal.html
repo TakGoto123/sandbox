@@ -1,0 +1,773 @@
+<!-- 献立追加モーダル -->
+<div id="addMealModal" class="modal">
+  <div class="modal-content">
+    <div class="modal-header">
+      <h2 class="modal-title">献立を追加</h2>
+      <button class="close-btn" onclick="closeAddMealModal()">&times;</button>
+    </div>
+    
+    <div id="modalMessage"></div>
+    
+    <form id="addMealForm">
+      <div class="form-group">
+        <label class="form-label">日付</label>
+        <input type="text" id="mealDate" class="form-input" readonly>
+      </div>
+      
+      <div class="form-group">
+        <label class="form-label">区分</label>
+        <input type="text" id="mealType" class="form-input" readonly>
+      </div>
+      
+      <div class="form-group">
+        <label class="form-label">メニュー名 *</label>
+        <input type="text" id="menuName" class="form-input" placeholder="料理名またはURLを入力してください" required>
+        <ul id="menuSuggestions" class="suggestions-list"></ul>
+        <div id="menuPreview" style="margin-top: 10px; display: none;">
+          <div style="background: #f8f9fa; border: 1px solid #dee2e6; border-radius: 4px; padding: 10px;">
+            <strong>プレビュー:</strong>
+            <div id="menuPreviewContent" style="margin-top: 5px;"></div>
+          </div>
+        </div>
+        <small style="color: #7f8c8d; font-size: 0.9em; margin-top: 5px; display: block;">
+          URLを入力すると自動でタイトルを取得してハイパーリンクに変換されます
+        </small>
+      </div>
+      
+      <div class="form-group">
+        <label class="form-label">メモ</label>
+        <textarea id="menuMemo" class="form-input form-textarea" placeholder="メモがあれば入力してください"></textarea>
+      </div>
+      
+      <div class="modal-actions">
+        <button type="button" class="btn btn-secondary" onclick="closeAddMealModal()">キャンセル</button>
+        <button type="submit" class="btn btn-primary" id="submitBtn">
+          <span id="submitBtnText">追加</span>
+        </button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- 献立削除確認モーダル -->
+<div id="deleteMealModal" class="modal">
+  <div class="modal-content">
+    <div class="modal-header">
+      <h2 class="modal-title">献立を削除</h2>
+      <button class="close-btn" onclick="closeDeleteMealModal()">&times;</button>
+    </div>
+    
+    <div id="deleteModalMessage"></div>
+    
+    <div class="delete-confirmation">
+      <div class="warning-icon" style="text-align: center; margin-bottom: 20px;">
+        <span style="font-size: 48px; color: #ff6b6b;">⚠️</span>
+      </div>
+      
+      <p style="text-align: center; margin-bottom: 20px; font-size: 16px;">
+        以下の献立を削除してもよろしいですか？
+      </p>
+      
+      <div class="meal-info" style="background: #f8f9fa; border: 1px solid #dee2e6; border-radius: 4px; padding: 15px; margin-bottom: 20px;">
+        <div class="info-row" style="margin-bottom: 8px;">
+          <strong>日付:</strong> <span id="deleteDate"></span>
+        </div>
+        <div class="info-row" style="margin-bottom: 8px;">
+          <strong>区分:</strong> <span id="deleteType"></span>
+        </div>
+        <div class="info-row" style="margin-bottom: 8px;">
+          <strong>メニュー:</strong> <span id="deleteMenu"></span>
+        </div>
+        <div class="info-row">
+          <strong>メモ:</strong> <span id="deleteMemo"></span>
+        </div>
+      </div>
+      
+      <p style="text-align: center; color: #dc3545; font-size: 14px; margin-bottom: 20px;">
+        ※ この操作は取り消すことができません
+      </p>
+      
+      <div class="modal-actions">
+        <button type="button" class="btn btn-secondary" onclick="closeDeleteMealModal()">キャンセル</button>
+        <button type="button" class="btn btn-danger" id="confirmDeleteBtn" onclick="confirmDeleteMeal()">
+          <span id="deleteBtnText">削除する</span>
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+/**
+ * モーダル操作とフォーム処理のハンドラー
+ * 献立追加モーダルに関する全ての処理を管理
+ */
+class ModalHandler {
+  constructor() {
+    this.currentUrl = '';
+    this.timeoutId = null;
+    this.menuMap = {};
+    this.initialize();
+  }
+
+  /**
+   * モーダルハンドラーの初期化
+   */
+  initialize() {
+    this.setupEventListeners();
+    this.setupMenuNameAutoProcessing();
+    this.loadMenuMapFromServer();
+  }
+
+  loadMenuMapFromServer() {
+    this.callGasFunction('getRegisteredMenusForApp')
+      .then((result) => {
+        this.menuMap = result || {};
+      })
+      .catch((error) => {
+        console.error('メニュー一覧の取得に失敗:', error);
+      });
+  }
+
+  /**
+   * イベントリスナーの設定
+   */
+  setupEventListeners() {
+    console.log("Debug: setupEventListeners");
+
+    // フォーム送信イベント
+    const form = document.getElementById('addMealForm');
+    if (form) {
+      console.log("Debug: form submit added");
+      form.addEventListener('submit', (e) => this.handleFormSubmit(e));
+    }
+    
+    // 追加モーダル外クリックで閉じる
+    const addModal = document.getElementById('addMealModal');
+    if (addModal) {
+      addModal.addEventListener('click', (e) => {
+        if (e.target === addModal) {
+          this.closeModal();
+        }
+      });
+    }
+
+    // 削除モーダル外クリックで閉じる
+    const deleteModal = document.getElementById('deleteMealModal');
+    if (deleteModal) {
+      deleteModal.addEventListener('click', (e) => {
+        if (e.target === deleteModal) {
+          this.closeDeleteModal();
+        }
+      });
+    }
+
+    // ESCキーでモーダルを閉じる
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape') {
+        console.log("Debug: Escape clicked");
+        const addModal = document.getElementById('addMealModal');
+        const deleteModal = document.getElementById('deleteMealModal');
+        
+        if (addModal && addModal.style.display === 'block') {
+          this.closeModal();
+        } else if (deleteModal && deleteModal.style.display === 'block') {
+          this.closeDeleteModal();
+        }
+      }
+    });
+  }
+
+  /**
+   * 献立追加モーダルを開く
+   * @param {string} date - 日付
+   * @param {string} type - 区分
+   */
+  openModal(date, type) {
+    console.log('Opening modal for:', date, type);
+    
+    // フォームをリセット
+    document.getElementById('addMealForm').reset();
+    document.getElementById('modalMessage').innerHTML = '';
+    
+    // 日付と区分を設定
+    const mealDateElement = document.getElementById('mealDate');
+    const mealTypeElement = document.getElementById('mealType');
+    
+    if (mealDateElement && mealTypeElement && mealPlanAppInstance) {
+      mealDateElement.value = WeekManager.formatDisplayDate(date);
+      mealTypeElement.value = type;
+      
+      // 隠しフィールドとして実際の値を保存
+      mealDateElement.dataset.actualDate = date;
+      mealTypeElement.dataset.actualType = type;
+    }
+    
+    // プレビューを非表示
+    this.hideMenuPreview();
+    
+    // モーダルを表示
+    const modal = document.getElementById('addMealModal');
+    if (modal) {
+      modal.style.display = 'block';
+    }
+  }
+
+  /**
+   * 献立追加モーダルを閉じる
+   */
+  closeModal() {
+    const modal = document.getElementById('addMealModal');
+    if (modal) {
+      modal.style.display = 'none';
+    }
+    
+    // タイマーをクリア
+    if (this.timeoutId) {
+      clearTimeout(this.timeoutId);
+      this.timeoutId = null;
+    }
+    
+    // プレビューを非表示
+    this.hideMenuPreview();
+  }
+
+  /**
+   * モーダル内にメッセージを表示
+   * @param {string} message - メッセージ
+   * @param {string} type - メッセージタイプ（success/error）
+   */
+  showMessage(message, type) {
+    console.log("hogehoge")
+    console.log(message)
+
+    const messageDiv = document.getElementById('modalMessage');
+    if (!messageDiv) return;
+    
+    const className = type === 'success' ? 'success-message' : 'error-message';
+    messageDiv.innerHTML = `<div class="${className}">${message}</div>`;
+    
+    // 3秒後にメッセージを消去
+    setTimeout(() => {
+      messageDiv.innerHTML = '';
+    }, 3000);
+  }
+
+  /**
+   * メニュー名入力フィールドの変更を監視してURL自動処理
+   */
+  setupMenuNameAutoProcessing() {
+    const menuNameInput = document.getElementById('menuName');
+    const memoInput = document.getElementById('menuMemo');
+    const suggestionBox = document.getElementById('menuSuggestions');
+
+    if (!menuNameInput || !memoInput || !suggestionBox) return;
+    let currentIndex = -1;
+
+    const updateSuggestions = (inputValue) => {
+      const lowerValue = inputValue.toLowerCase().trim();
+      suggestionBox.innerHTML = '';
+
+      const matches = lowerValue === ''
+        ? Object.values(this.menuMap)
+        : Object.values(this.menuMap).filter(item =>
+            item.menu.toLowerCase().includes(lowerValue)
+          );
+
+      matches.forEach((item, index) => {
+        const li = document.createElement('li');
+        li.textContent = item.menu;
+        li.classList.add('suggestion-item');
+        li.dataset.index = index;
+        li.addEventListener('click', () => {
+          menuNameInput.value = item.menu;
+          memoInput.value = item.ingredients;
+          suggestionBox.innerHTML = '';
+        });
+        suggestionBox.appendChild(li);
+      });
+    };
+
+    // === 1. URLペーストイベント ===
+    menuNameInput.addEventListener('paste', (e) => {
+      setTimeout(() => {
+        const value = e.target.value.trim();
+        if (this.isValidUrl(value)) {
+          this.autoFetchTitleFromUrl(value);
+        }
+      }, 10);
+    });
+
+    // --- 入力時（通常/空白） ---
+    menuNameInput.addEventListener('input', (e) => {
+      const value = e.target.value;
+      if (this.isValidUrl(value)) {
+        this.autoFetchTitleFromUrl(value);
+        suggestionBox.innerHTML = '';
+        return;
+      }
+      updateSuggestions(value);
+    });
+
+    // --- フォーカス時（はじめてでも全候補表示） ---
+    menuNameInput.addEventListener('focus', () => {
+      if (menuNameInput.value.trim() === '') {
+        updateSuggestions('');
+      }
+    });
+
+    // --- キーボード操作（上下/Enter） ---
+    menuNameInput.addEventListener('keydown', (e) => {
+      const items = suggestionBox.querySelectorAll('.suggestion-item');
+      if (items.length === 0) return;
+
+      if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        currentIndex = (currentIndex + 1) % items.length;
+      } else if (e.key === 'ArrowUp') {
+        e.preventDefault();
+        currentIndex = (currentIndex - 1 + items.length) % items.length;
+      } else if (e.key === 'Enter' && currentIndex >= 0) {
+        e.preventDefault();
+        items[currentIndex].click();
+        return;
+      } else {
+        return; // 他キーは無視
+      }
+
+      // ハイライト更新
+      items.forEach((el, idx) => {
+        if (idx === currentIndex) {
+          el.classList.add('active');
+        } else {
+          el.classList.remove('active');
+        }
+      });
+    });    
+
+    // === 3. フォーカス外れたら候補非表示 ===
+    menuNameInput.addEventListener('blur', () => {
+      setTimeout(() => {
+        suggestionBox.innerHTML = '';
+      }, 200);
+    });
+  }
+
+  /**
+   * URL入力処理の共通ハンドラー
+   * @param {string} value - 入力値
+   * @param {boolean} immediate - 即座に実行するかどうか
+   */
+  handleUrlInput(value, immediate = false) {
+    // 前のタイマーをクリア
+    if (this.timeoutId) {
+      clearTimeout(this.timeoutId);
+      this.timeoutId = null;
+    }
+
+    // プレビューをリセット
+    this.hideMenuPreview();
+
+    // URLかどうかをチェック
+    if (this.isValidUrl(value)) {
+      // 同じURLの重複処理を防止
+      if (value === this.currentUrl) {
+        return;
+      }
+      
+      this.currentUrl = value;
+      
+      if (immediate) {
+        // 即座に実行（ペースト時）
+        this.autoFetchTitleFromUrl(value);
+      } else {
+        // デバウンス実行（通常入力時）
+        this.timeoutId = setTimeout(async () => {
+          await this.autoFetchTitleFromUrl(value);
+        }, 500);
+      }
+    } else if (!this.isValidUrl(value)) {
+      this.currentUrl = '';
+    }
+  }
+
+  /**
+   * URLから自動でタイトルを取得してプレビュー表示
+   * @param {string} url - URL
+   */
+  async autoFetchTitleFromUrl(url) {
+    try {
+      this.showMenuPreview('タイトルを取得中...', url, true);
+      
+      // Google Apps Scriptの関数を呼び出し
+      const result = await this.callGasFunction('fetchTitleFromUrl', url);
+      
+      if (result.success) {
+        this.showMenuPreview(result.title, result.url, false);
+        // 入力フィールドの値は変更しない（URLのまま保持）
+      } else {
+        this.showMenuPreview('タイトルの取得に失敗しました', url, false);
+      }
+    } catch (error) {
+      console.error('Auto fetch title error:', error);
+      this.showMenuPreview('タイトルの取得中にエラーが発生しました', url, false);
+    }
+  }
+
+  /**
+   * メニュープレビューを表示
+   * @param {string} title - タイトル
+   * @param {string} url - URL
+   * @param {boolean} loading - ローディング中かどうか
+   */
+  showMenuPreview(title, url, loading = false) {
+    const previewDiv = document.getElementById('menuPreview');
+    const previewContent = document.getElementById('menuPreviewContent');
+    
+    if (!previewDiv || !previewContent) return;
+    
+    if (loading) {
+      previewContent.innerHTML = `<span style="color: #6c757d;"><i class="loading-spinner" style="margin-right: 5px;"></i>${title}</span>`;
+    } else {
+      previewContent.innerHTML = `<a href="${url}" target="_blank" style="color: #007bff; text-decoration: none;">${title}</a>`;
+    }
+    
+    previewDiv.style.display = 'block';
+  }
+
+  /**
+   * メニュープレビューを非表示
+   */
+  hideMenuPreview() {
+    const previewDiv = document.getElementById('menuPreview');
+    if (previewDiv) {
+      previewDiv.style.display = 'none';
+    }
+  }
+
+  /**
+   * フォーム送信処理
+   * @param {Event} e - フォームイベント
+   */
+  async handleFormSubmit(e) {
+    console.log("fugafuga01")
+
+    e.preventDefault();
+    
+    const submitBtn = document.getElementById('submitBtn');
+    const submitBtnText = document.getElementById('submitBtnText');
+    
+    // フォームデータを取得
+    const date = document.getElementById('mealDate').dataset.actualDate;
+    const type = document.getElementById('mealType').dataset.actualType;
+    const menuInput = document.getElementById('menuName').value.trim();
+    const memo = document.getElementById('menuMemo').value.trim();
+    
+    if (!menuInput) {
+      this.showMessage('メニュー名を入力してください', 'error');
+      return;
+    }
+    
+    // メニューオブジェクトを構築
+    let menuObj = {
+      text: menuInput,
+      url: null
+    };
+    
+    // URLの場合、プレビューからタイトルを取得
+    if (this.isValidUrl(menuInput)) {
+      const previewContent = document.getElementById('menuPreviewContent');
+      if (previewContent && previewContent.querySelector('a')) {
+        // プレビューからタイトルを取得
+        const titleFromPreview = previewContent.querySelector('a').textContent;
+        menuObj = {
+          text: titleFromPreview,
+          url: menuInput
+        };
+      } else {
+        // プレビューがない場合はURLをそのまま使用
+        menuObj = {
+          text: menuInput,
+          url: null
+        };
+      }
+    }
+    
+    // ボタンを無効化してローディング表示
+    if (submitBtn && submitBtnText) {
+      submitBtn.disabled = true;
+      submitBtnText.innerHTML = '<span class="loading-spinner"></span> 追加中...';
+    }
+    
+    try {
+      // Google Apps Scriptの関数を呼び出し
+      const result = await this.callGasFunction('addMealData', date, type, menuObj, memo);
+      
+      if (result.success) {
+        this.showMessage('献立を追加しました', 'success');
+        
+        // データを更新してテーブルを再描画
+        setTimeout(() => {
+          const menuData = menuObj.url ? JSON.stringify(menuObj) : menuObj.text;
+          if (mealPlanAppInstance && mealPlanAppInstance.allData) {
+            mealPlanAppInstance.allData.push([date, type, menuData, memo]);
+          }
+          
+          // テーブルを再描画
+          if (mealPlanAppInstance) {
+            mealPlanAppInstance.renderTable();
+          }
+          
+          // モーダルを閉じる
+          this.closeModal();
+        }, 1000);
+      } else {
+        this.showMessage(result.message || 'データの追加に失敗しました', 'error');
+      }
+    } catch (error) {
+      console.error('Add meal error:', error);
+      this.showMessage('データの追加中にエラーが発生しました', 'error');
+    } finally {
+      // ボタンを有効化
+      if (submitBtn && submitBtnText) {
+        submitBtn.disabled = false;
+        submitBtnText.textContent = '追加';
+      }
+    }
+  }
+
+  /**
+   * URLかどうかを判定
+   * @param {string} text - 判定するテキスト
+   * @returns {boolean} URLの場合true
+   */
+  isValidUrl(text) {
+    try {
+      const url = new URL(text);
+      return url.protocol === 'http:' || url.protocol === 'https:';
+    } catch (error) {
+      return false;
+    }
+  }
+
+  /**
+   * Google Apps Scriptの関数を呼び出し
+   * @param {string} functionName - 関数名
+   * @param {...any} args - 引数
+   * @returns {Promise} 結果のPromise
+   */
+  callGasFunction(functionName, ...args) {
+    return new Promise((resolve, reject) => {
+      google.script.run
+        .withSuccessHandler(resolve)
+        .withFailureHandler(reject)
+        [functionName](...args);
+    });
+  }
+
+  /**
+   * 削除確認モーダルを開く
+   * @param {string} dataStr - 削除対象データのJSON文字列
+   */
+  openDeleteModal(dataStr) {
+    try {
+      const data = JSON.parse(dataStr);
+      console.log('Opening delete modal for:', data);
+      
+      // 削除確認モーダルの情報を設定
+      document.getElementById('deleteDate').textContent = WeekManager.formatDisplayDate(data.date);
+      document.getElementById('deleteType').textContent = data.type;
+      document.getElementById('deleteMenu').textContent = data.menuText;
+      document.getElementById('deleteMemo').textContent = data.memo || '（なし）';
+      
+      // 削除対象データを保存
+      this.deleteTargetData = data;
+      
+      // モーダルを表示
+      const modal = document.getElementById('deleteMealModal');
+      if (modal) {
+        modal.style.display = 'block';
+      }
+    } catch (error) {
+      console.error('Error opening delete modal:', error);
+      alert('削除モーダルの表示中にエラーが発生しました');
+    }
+  }
+
+  /**
+   * 削除確認モーダルを閉じる
+   */
+  closeDeleteModal() {
+    const modal = document.getElementById('deleteMealModal');
+    if (modal) {
+      modal.style.display = 'none';
+    }
+    
+    // 削除対象データをクリア
+    this.deleteTargetData = null;
+    
+    // メッセージをクリア
+    const messageDiv = document.getElementById('deleteModalMessage');
+    if (messageDiv) {
+      messageDiv.innerHTML = '';
+    }
+  }
+
+  /**
+   * 削除確認モーダル内にメッセージを表示
+   * @param {string} message - メッセージ
+   * @param {string} type - メッセージタイプ（success/error）
+   */
+  showDeleteMessage(message, type) {
+    const messageDiv = document.getElementById('deleteModalMessage');
+    if (!messageDiv) return;
+    
+    const className = type === 'success' ? 'success-message' : 'error-message';
+    messageDiv.innerHTML = `<div class="${className}">${message}</div>`;
+    
+    // 3秒後にメッセージを消去
+    setTimeout(() => {
+      messageDiv.innerHTML = '';
+    }, 3000);
+  }
+
+  /**
+   * 削除を実行
+   */
+  async confirmDelete() {
+    if (!this.deleteTargetData) {
+      console.error('No delete target data found');
+      return;
+    }
+    
+    const confirmDeleteBtn = document.getElementById('confirmDeleteBtn');
+    const deleteBtnText = document.getElementById('deleteBtnText');
+    
+    // ボタンを無効化してローディング表示
+    if (confirmDeleteBtn && deleteBtnText) {
+      confirmDeleteBtn.disabled = true;
+      deleteBtnText.innerHTML = '<span class="loading-spinner"></span> 削除中...';
+    }
+    
+    try {
+      // Google Apps Scriptの削除関数を呼び出し
+      const result = await this.callGasFunction(
+        'deleteMealData',
+        this.deleteTargetData.date,
+        this.deleteTargetData.type,
+        this.deleteTargetData.menuText,
+        this.deleteTargetData.memo
+      );
+      
+      if (result.success) {
+        this.showDeleteMessage('献立を削除しました', 'success');
+        
+        // データを更新してテーブルを再描画
+        setTimeout(() => {
+          // ローカルデータからも削除
+          if (mealPlanAppInstance && mealPlanAppInstance.allData) {
+            mealPlanAppInstance.allData = mealPlanAppInstance.allData.filter(([date, type, menu, memo]) => {
+              const menuText = typeof menu === 'object' && menu !== null && menu.text ? menu.text : menu;
+              return !(
+                date === this.deleteTargetData.date &&
+                type === this.deleteTargetData.type &&
+                menuText === this.deleteTargetData.menuText &&
+                memo === this.deleteTargetData.memo
+              );
+            });
+          }
+          
+          // テーブルを再描画
+          if (mealPlanAppInstance) {
+            mealPlanAppInstance.renderTable();
+          }
+          
+          // モーダルを閉じる
+          this.closeDeleteModal();
+        }, 1000);
+      } else {
+        this.showDeleteMessage(result.message || 'データの削除に失敗しました', 'error');
+      }
+    } catch (error) {
+      console.error('Delete meal error:', error);
+      this.showDeleteMessage('データの削除中にエラーが発生しました', 'error');
+    } finally {
+      // ボタンを有効化
+      if (confirmDeleteBtn && deleteBtnText) {
+        confirmDeleteBtn.disabled = false;
+        deleteBtnText.textContent = '削除する';
+      }
+    }
+  }
+}
+
+// ========================================
+// グローバル関数（後方互換性のため）
+// ========================================
+
+// モーダルハンドラーのインスタンス
+let modalHandlerInstance = null;
+
+// DOMContentLoadedでモーダルハンドラーを初期化
+document.addEventListener('DOMContentLoaded', () => {
+  modalHandlerInstance = new ModalHandler();
+});
+
+/**
+ * 献立追加モーダルを開く（グローバル関数）
+ * @param {string} date - 日付
+ * @param {string} type - 区分
+ */
+function openAddMealModal(date, type) {
+  if (modalHandlerInstance) {
+    modalHandlerInstance.openModal(date, type);
+  } else {
+    console.error('ModalHandler instance not found');
+  }
+}
+
+/**
+ * 献立追加モーダルを閉じる（グローバル関数）
+ */
+function closeAddMealModal() {
+  if (modalHandlerInstance) {
+    modalHandlerInstance.closeModal();
+  } else {
+    console.error('ModalHandler instance not found');
+  }
+}
+
+/**
+ * 削除確認モーダルを開く（グローバル関数）
+ * @param {string} dataStr - 削除対象データのJSON文字列
+ */
+function openDeleteMealModal(dataStr) {
+  if (modalHandlerInstance) {
+    modalHandlerInstance.openDeleteModal(dataStr);
+  } else {
+    console.error('ModalHandler instance not found');
+  }
+}
+
+/**
+ * 削除確認モーダルを閉じる（グローバル関数）
+ */
+function closeDeleteMealModal() {
+  if (modalHandlerInstance) {
+    modalHandlerInstance.closeDeleteModal();
+  } else {
+    console.error('ModalHandler instance not found');
+  }
+}
+
+/**
+ * 削除を確定する（グローバル関数）
+ */
+function confirmDeleteMeal() {
+  if (modalHandlerInstance) {
+    modalHandlerInstance.confirmDelete();
+  } else {
+    console.error('ModalHandler instance not found');
+  }
+}
+</script>
