@@ -1,0 +1,87 @@
+// form.html
+<!DOCTYPE html>
+<html>
+<head>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <base target="_top">
+</head>
+<body>
+  <h3>献立登録</h3>
+  <input type="date" id="date"><br>
+  <input type="text" id="category" placeholder="区分 (例: 弁当)"><br>
+  <input type="text" id="menu" placeholder="献立名"><br>
+  <input type="text" id="ingredients" placeholder="材料メモ"><br>
+  <button onclick="submit()">登録</button>
+
+  <h3>週単位で献立表示</h3>
+  開始日: <input type="date" id="weekStart">
+  終了日: <input type="date" id="weekEnd">
+  <button onclick="showWeeklyMenus()">表示</button>
+
+  <canvas id="menuCanvas" width="600" height="400"></canvas>
+
+<script>
+function submit() {
+  const data = {
+    date: document.getElementById('date').value,
+    category: document.getElementById('category').value,
+    menu: document.getElementById('menu').value,
+    ingredients: document.getElementById('ingredients').value,
+  };
+  google.script.run.withSuccessHandler(() => alert('登録しました')).submitMenu(data);
+}
+
+function showWeeklyMenus() {
+  const start = document.getElementById('weekStart').value;
+  const end = document.getElementById('weekEnd').value;
+
+  google.script.run.withSuccessHandler(drawMenus).getMenusForWeek(start, end);
+}
+
+function drawMenus(menus) {
+  const canvas = document.getElementById('menuCanvas');
+  const ctx = canvas.getContext('2d');
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+  ctx.font = '14px Arial';
+  let y = 20;
+
+  // 日付ごとにまとめる
+  const groupedByDate = {};
+  menus.forEach(m => {
+    if (!groupedByDate[m.date]) {
+      groupedByDate[m.date] = [];
+    }
+    groupedByDate[m.date].push(m);
+  });
+
+  for (const date in groupedByDate) {
+    ctx.fillText(date, 10, y);
+    y += 20;
+
+    // 区分ごとにまとめる
+    const groupedByCategory = {};
+    groupedByDate[date].forEach(m => {
+      if (!groupedByCategory[m.category]) {
+        groupedByCategory[m.category] = [];
+      }
+      groupedByCategory[m.category].push(m.menu);
+    });
+
+    for (const category in groupedByCategory) {
+      ctx.fillText(` [${category}]`, 20, y);
+      y += 20;
+
+      groupedByCategory[category].forEach(menu => {
+        ctx.fillText(` ・${menu}`, 40, y);
+        y += 20;
+      });
+      y += 10;
+    }
+    y += 10;
+  }
+}
+</script>
+
+</body>
+</html>
