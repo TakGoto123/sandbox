@@ -120,7 +120,7 @@ class ModalHandler {
   }
 
   loadMenuMapFromServer() {
-    this.callGasFunction('getRegisteredMenusForApp')
+    callGasFunction('getRegisteredMenusForApp')
       .then((result) => {
         this.menuMap = result || {};
       })
@@ -400,7 +400,7 @@ class ModalHandler {
       this.showMenuPreview('タイトルを取得中...', url, true);
       
       // Google Apps Scriptの関数を呼び出し
-      const result = await this.callGasFunction('fetchTitleFromUrl', url);
+      const result = await callGasFunction('fetchTitleFromUrl', url);
       
       if (result.success) {
         this.showMenuPreview(result.title, result.url, false);
@@ -501,7 +501,7 @@ class ModalHandler {
     
     try {
       // Google Apps Scriptの関数を呼び出し
-      const result = await this.callGasFunction('addMealData', date, type, menuObj, memo);
+      const result = await callGasFunction('addMealData', date, type, menuObj, memo);
       
       if (result.success) {
         this.showMessage('献立を追加しました', 'success');
@@ -548,21 +548,6 @@ class ModalHandler {
     } catch (error) {
       return false;
     }
-  }
-
-  /**
-   * Google Apps Scriptの関数を呼び出し
-   * @param {string} functionName - 関数名
-   * @param {...any} args - 引数
-   * @returns {Promise} 結果のPromise
-   */
-  callGasFunction(functionName, ...args) {
-    return new Promise((resolve, reject) => {
-      google.script.run
-        .withSuccessHandler(resolve)
-        .withFailureHandler(reject)
-        [functionName](...args);
-    });
   }
 
   /**
@@ -651,7 +636,7 @@ class ModalHandler {
     
     try {
       // Google Apps Scriptの削除関数を呼び出し
-      const result = await this.callGasFunction(
+      const result = await callGasFunction(
         'deleteMealData',
         this.deleteTargetData.date,
         this.deleteTargetData.type,

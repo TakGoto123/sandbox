@@ -360,5 +360,20 @@
     document.head.appendChild(style);
   }
 
+  /**
+   * Google Apps Scriptの関数を呼び出し
+   * @param {string} functionName - 関数名
+   * @param {...any} args - 引数
+   * @returns {Promise} 結果のPromise
+   */
+  function callGasFunction(functionName, ...args) {
+    return new Promise((resolve, reject) => {
+      google.script.run
+        .withSuccessHandler(resolve)
+        .withFailureHandler(reject)
+        [functionName](...args);
+    });
+  }
+
   console.log('Common utilities loaded successfully');
 </script>

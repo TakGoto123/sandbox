@@ -6,18 +6,6 @@
 // ========================================
 // 定数定義
 // ========================================
-const CONFIG = {
-  SHEET_NAME: 'menu-schedule',
-  MEAL_TYPES: ['弁当', '夜'],
-  DATE_FORMAT: 'yyyy-MM-dd',
-  TIMEZONE: 'Asia/Tokyo',
-  WEEK_START_DAY: 6, // 土曜日 (0=日曜日)
-  WORK_DAYS: [2, 3, 4, 5, 6] // 月〜金曜日のオフセット
-};
-
-// ========================================
-// アクセス制御機能
-// ========================================
 
 /**
  * config シートを辞書として読み込む
@@ -45,6 +33,12 @@ function loadConfigAsDict() {
   return configDict;
 }
 
+const CONFIG = loadConfigAsDict();
+Logger.log("CONFIG:\n" + CONFIG);
+
+// ========================================
+// アクセス制御機能
+// ========================================
 /**
  * アクセス制御チェック
  * @returns {string} 認証されたユーザーのメールアドレス
@@ -52,12 +46,10 @@ function loadConfigAsDict() {
  */
 function checkAccess() {
   try {
-    const config = loadConfigAsDict();
-    const ALLOWED_USERS = config["allowed_users"];
     const userEmail = Session.getActiveUser().getEmail();
     Logger.log(`取得したユーザーメール: "${userEmail}"`);
     Logger.log(`ユーザーメールの型: ${typeof userEmail}`);
-    Logger.log(`許可されたユーザー一覧: ${JSON.stringify(ALLOWED_USERS)}`);
+    Logger.log(`許可されたユーザー一覧: ${JSON.stringify(CONFIG.ALLOWED_USERS)}`);
     
     if (!userEmail || userEmail.trim() === '') {
       Logger.log('ユーザーメールが空です');
@@ -65,7 +57,7 @@ function checkAccess() {
     }
     
     const trimmedEmail = userEmail.trim().toLowerCase();
-    const allowedEmailsLower = ALLOWED_USERS.map(email => email.toLowerCase());
+    const allowedEmailsLower = CONFIG.ALLOWED_USERS.map(email => email.toLowerCase());
     
     Logger.log(`正規化されたユーザーメール: "${trimmedEmail}"`);
     Logger.log(`正規化された許可リスト: ${JSON.stringify(allowedEmailsLower)}`);
