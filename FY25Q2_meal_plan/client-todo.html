@@ -1,0 +1,750 @@
+<script>
+/**
+ * TODO管理機能 - クライアントサイド
+ * TODOリストの表示、操作、更新機能
+ */
+
+class TodoManager {
+  constructor() {
+    this.isInitialized = false;
+    this.currentTodoData = [];
+    this.currentWeekStart = null;
+    this.isLoading = false;
+  }
+
+  /**
+   * TODO管理機能を初期化
+   * @param {string} weekStart - 週開始日
+   */
+  async initialize(weekStart) {
+    if (this.isInitialized) {
+      console.log('TodoManager already initialized');
+      return;
+    }
+
+    console.log('=== TodoManager初期化開始 ===');
+    
+    try {
+      this.currentWeekStart = weekStart;
+      
+      // 初期データを読み込み
+      await this.loadTodoData();
+      
+      // イベントリスナーを設定
+      this.setupEventListeners();
+      
+      this.isInitialized = true;
+      console.log('=== TodoManager初期化完了 ===');
+      
+    } catch (error) {
+      console.error('TodoManager初期化エラー:', error);
+      UIUtils.showError('TODO機能の初期化に失敗しました: ' + error.message, 'todoContent');
+      throw error;
+    }
+  }
+
+  /**
+   * TODOデータを読み込み
+   */
+  async loadTodoData() {
+    if (this.isLoading) {
+      console.log('Already loading TODO data');
+      return;
+    }
+
+    this.isLoading = true;
+    console.log(`Loading TODO data for week: ${this.currentWeekStart}`);
+    
+    try {
+      // ローディング表示
+      this.showLoading();
+      
+      // サーバーからTODOデータを取得
+      const result = await this.fetchTodoDataFromServer(this.currentWeekStart);
+      
+      if (result.success) {
+        this.currentTodoData = result.data || [];
+        console.log(`Loaded ${this.currentTodoData.length} TODO items`);
+        
+        // TODOリストを表示
+        this.renderTodoList();
+        
+        // 週情報を更新
+        this.updateWeekInfo(result);
+        
+      } else {
+        throw new Error(result.message || 'TODOデータの取得に失敗しました');
+      }
+      
+    } catch (error) {
+      console.error('TODOデータ読み込みエラー:', error);
+      UIUtils.showError('TODOデータの読み込みに失敗しました: ' + error.message, 'todoList');
+    } finally {
+      this.isLoading = false;
+    }
+  }
+
+  /**
+   * サーバーからTODOデータを取得
+   * @param {string} weekStart - 週開始日
+   * @returns {Promise<Object>} TODOデータ
+   */
+  async fetchTodoDataFromServer(weekStart) {
+    return new Promise((resolve, reject) => {
+      google.script.run
+        .withSuccessHandler(resolve)
+        .withFailureHandler(reject)
+        .getTodoDataForApp(weekStart);
+    });
+  }
+
+  /**
+   * TODOリストを表示
+   */
+  renderTodoList() {
+    const todoListElement = document.getElementById('todoList');
+    if (!todoListElement) {
+      console.error('todoList element not found');
+      return;
+    }
+
+    if (this.currentTodoData.length === 0) {
+      todoListElement.innerHTML = `
+        <div class="no-data">
+          <p>📝 表示するTODOがありません</p>
+          <p class="no-data-sub">新しいTODOを追加してください</p>
+        </div>
+      `;
+      return;
+    }
+
+    // TODOアイテムをグループ化（完了/未完了）
+    const incompleteTodos = this.currentTodoData.filter(item => !item.done);
+    const completeTodos = this.currentTodoData.filter(item => item.done);
+
+    let html = '<div class="todo-list">';
+
+    // 未完了TODOを表示
+    if (incompleteTodos.length > 0) {
+      html += '<div class="todo-section">';
+      html += '<h3 class="todo-section-title">📋 未完了のTODO</h3>';
+      html += '<div class="todo-items">';
+      
+      incompleteTodos.forEach(item => {
+        html += this.renderTodoItem(item, false);
+      });
+      
+      html += '</div></div>';
+    }
+
+    // 完了済みTODOを表示（破線スタイル）
+    if (completeTodos.length > 0) {
+      html += '<div class="todo-section completed-section">';
+      html += '<h3 class="todo-section-title">✅ 完了済みのTODO</h3>';
+      html += '<div class="todo-items">';
+      
+      completeTodos.forEach(item => {
+        html += this.renderTodoItem(item, true);
+      });
+      
+      html += '</div></div>';
+    }
+
+    html += '</div>';
+
+    // 新しいTODO追加フォーム
+    html += this.renderAddTodoForm();
+
+    todoListElement.innerHTML = html;
+  }
+
+  /**
+   * 個別のTODOアイテムを表示
+   * @param {Object} item - TODOアイテム
+   * @param {boolean} isCompleted - 完了済みかどうか
+   * @returns {string} HTML文字列
+   */
+  renderTodoItem(item, isCompleted) {
+    const itemClass = isCompleted ? 'todo-item completed' : 'todo-item';
+    const checkboxChecked = item.done ? 'checked' : '';
+    const dateFormatted = this.formatDateForDisplay(item.date);
+    
+    return `
+      <div class="${itemClass}" data-todo-id="${item.id}" data-row-number="${item.rowNumber}">
+        <div class="todo-checkbox">
+          <input type="checkbox" 
+                 id="todo_${item.rowNumber}" 
+                 ${checkboxChecked}
+                 onchange="handleTodoStatusChange(${item.rowNumber}, this.checked)">
+        </div>
+        <div class="todo-content">
+          <div class="todo-text">${UIUtils.escapeHtml(item.todo)}</div>
+          <div class="todo-meta">
+            <span class="todo-date">📅 ${dateFormatted}</span>
+            ${item.timestamp ? `<span class="todo-timestamp">⏰ ${item.timestamp}</span>` : ''}
+          </div>
+        </div>
+        <div class="todo-actions">
+          <button class="todo-delete-btn" 
+                  onclick="handleTodoDelete(${item.rowNumber})"
+                  title="削除">
+            🗑️
+          </button>
+        </div>
+      </div>
+    `;
+  }
+
+  /**
+   * 新しいTODO追加フォームを表示
+   * @returns {string} HTML文字列
+   */
+  renderAddTodoForm() {
+    return `
+      <div class="add-todo-section">
+        <h3 class="todo-section-title">➕ 新しいTODOを追加</h3>
+        <form class="add-todo-form" onsubmit="handleAddTodo(event)">
+          <div class="form-row">
+            <div class="form-group">
+              <label for="newTodoText">TODO内容</label>
+              <input type="text" 
+                     id="newTodoText" 
+                     name="todoText" 
+                     placeholder="やることを入力してください"
+                     required>
+            </div>
+            <div class="form-group">
+              <label for="newTodoDate">期限日</label>
+              <input type="date" 
+                     id="newTodoDate" 
+                     name="dueDate" 
+                     required>
+            </div>
+          </div>
+          <div class="form-actions">
+            <button type="submit" class="add-todo-btn">
+              ➕ TODOを追加
+            </button>
+          </div>
+        </form>
+      </div>
+    `;
+  }
+
+  /**
+   * 日付を表示用にフォーマット
+   * @param {string} dateStr - 日付文字列
+   * @returns {string} フォーマットされた日付
+   */
+  formatDateForDisplay(dateStr) {
+    try {
+      const date = new Date(dateStr);
+      const month = date.getMonth() + 1;
+      const day = date.getDate();
+      const dayOfWeek = ['日', '月', '火', '水', '木', '金', '土'][date.getDay()];
+      
+      return `${month}/${day}(${dayOfWeek})`;
+    } catch (error) {
+      return dateStr;
+    }
+  }
+
+  /**
+   * 週情報を更新
+   * @param {Object} result - サーバーからの結果
+   */
+  updateWeekInfo(result) {
+    console.log('Week info:', {
+      weekStart: result.weekStart,
+      targetSunday: result.targetSunday,
+      oneWeekBefore: result.oneWeekBefore
+    });
+  }
+
+  /**
+   * ローディング表示
+   */
+  showLoading() {
+    const todoListElement = document.getElementById('todoList');
+    if (todoListElement) {
+      todoListElement.innerHTML = `
+        <div class="loading">
+          <div class="loading-spinner"></div>
+          <p>TODOデータを読み込んでいます...</p>
+        </div>
+      `;
+    }
+  }
+
+  /**
+   * イベントリスナーを設定
+   */
+  setupEventListeners() {
+    console.log('Setting up TODO event listeners');
+    
+    // アプリケーション状態の変更を監視
+    if (typeof appState !== 'undefined') {
+      appState.subscribe('currentWeekStart', (newWeekStart) => {
+        if (newWeekStart !== this.currentWeekStart) {
+          this.currentWeekStart = newWeekStart;
+          this.loadTodoData();
+        }
+      });
+    }
+  }
+
+  /**
+   * 週を変更
+   * @param {string} newWeekStart - 新しい週開始日
+   */
+  async changeWeek(newWeekStart) {
+    if (newWeekStart === this.currentWeekStart) {
+      return;
+    }
+    
+    this.currentWeekStart = newWeekStart;
+    await this.loadTodoData();
+  }
+
+  /**
+   * TODO状態を更新
+   * @param {number} rowNumber - 行番号
+   * @param {boolean} doneStatus - Done状態
+   */
+  async updateTodoStatus(rowNumber, doneStatus) {
+    try {
+      console.log(`Updating TODO ${rowNumber}: done = ${doneStatus}`);
+      
+      const result = await this.updateTodoOnServer(rowNumber, doneStatus);
+      
+      if (result.success) {
+        console.log('TODO status updated successfully');
+        
+        // ローカルデータを更新
+        const todoItem = this.currentTodoData.find(item => item.rowNumber === rowNumber);
+        if (todoItem) {
+          todoItem.done = doneStatus;
+        }
+        
+        // 表示を更新
+        this.renderTodoList();
+        
+        UIUtils.showNotification(result.message || 'TODO状態を更新しました', 'success');
+      } else {
+        throw new Error(result.message || 'TODO状態の更新に失敗しました');
+      }
+      
+    } catch (error) {
+      console.error('TODO状態更新エラー:', error);
+      UIUtils.showNotification('TODO状態の更新に失敗しました: ' + error.message, 'error');
+      
+      // チェックボックスの状態を元に戻す
+      const checkbox = document.getElementById(`todo_${rowNumber}`);
+      if (checkbox) {
+        checkbox.checked = !doneStatus;
+      }
+    }
+  }
+
+  /**
+   * サーバーでTODO状態を更新
+   * @param {number} rowNumber - 行番号
+   * @param {boolean} doneStatus - Done状態
+   * @returns {Promise<Object>} 更新結果
+   */
+  async updateTodoOnServer(rowNumber, doneStatus) {
+    return new Promise((resolve, reject) => {
+      google.script.run
+        .withSuccessHandler(resolve)
+        .withFailureHandler(reject)
+        .updateTodoForApp(rowNumber, doneStatus);
+    });
+  }
+
+  /**
+   * 新しいTODOを追加
+   * @param {string} todoText - TODOテキスト
+   * @param {string} dueDate - 期限日
+   */
+  async addTodo(todoText, dueDate) {
+    try {
+      console.log(`Adding new TODO: ${todoText}, due: ${dueDate}`);
+      
+      const result = await this.addTodoOnServer(todoText, dueDate);
+      
+      if (result.success) {
+        console.log('TODO added successfully');
+        
+        // データを再読み込み
+        await this.loadTodoData();
+        
+        UIUtils.showNotification(result.message || 'TODOを追加しました', 'success');
+      } else {
+        throw new Error(result.message || 'TODOの追加に失敗しました');
+      }
+      
+    } catch (error) {
+      console.error('TODO追加エラー:', error);
+      UIUtils.showNotification('TODOの追加に失敗しました: ' + error.message, 'error');
+    }
+  }
+
+  /**
+   * サーバーでTODOを追加
+   * @param {string} todoText - TODOテキスト
+   * @param {string} dueDate - 期限日
+   * @returns {Promise<Object>} 追加結果
+   */
+  async addTodoOnServer(todoText, dueDate) {
+    return new Promise((resolve, reject) => {
+      google.script.run
+        .withSuccessHandler(resolve)
+        .withFailureHandler(reject)
+        .addTodoForApp(todoText, dueDate);
+    });
+  }
+
+  /**
+   * TODOを削除
+   * @param {number} rowNumber - 行番号
+   */
+  async deleteTodo(rowNumber) {
+    try {
+      if (!confirm('このTODOを削除しますか？')) {
+        return;
+      }
+      
+      console.log(`Deleting TODO ${rowNumber}`);
+      
+      const result = await this.deleteTodoOnServer(rowNumber);
+      
+      if (result.success) {
+        console.log('TODO deleted successfully');
+        
+        // データを再読み込み
+        await this.loadTodoData();
+        
+        UIUtils.showNotification(result.message || 'TODOを削除しました', 'success');
+      } else {
+        throw new Error(result.message || 'TODOの削除に失敗しました');
+      }
+      
+    } catch (error) {
+      console.error('TODO削除エラー:', error);
+      UIUtils.showNotification('TODOの削除に失敗しました: ' + error.message, 'error');
+    }
+  }
+
+  /**
+   * サーバーでTODOを削除
+   * @param {number} rowNumber - 行番号
+   * @returns {Promise<Object>} 削除結果
+   */
+  async deleteTodoOnServer(rowNumber) {
+    return new Promise((resolve, reject) => {
+      google.script.run
+        .withSuccessHandler(resolve)
+        .withFailureHandler(reject)
+        .deleteTodoForApp(rowNumber);
+    });
+  }
+
+  /**
+   * 破棄処理
+   */
+  destroy() {
+    console.log('TodoManager destroyed');
+    this.isInitialized = false;
+    this.currentTodoData = [];
+  }
+}
+
+// グローバルインスタンス
+let todoManager = null;
+
+/**
+ * TODO機能を初期化
+ * @param {string} weekStart - 週開始日
+ * @returns {TodoManager} TodoManagerインスタンス
+ */
+function initializeTodoManager(weekStart) {
+  console.log('Initializing TodoManager...');
+  
+  if (!todoManager) {
+    todoManager = new TodoManager();
+    window.todoManager = todoManager; // グローバルアクセス用
+  }
+  
+  todoManager.initialize(weekStart);
+  return todoManager;
+}
+
+/**
+ * TODO状態変更のグローバルハンドラー
+ * @param {number} rowNumber - 行番号
+ * @param {boolean} checked - チェック状態
+ */
+function handleTodoStatusChange(rowNumber, checked) {
+  if (todoManager) {
+    todoManager.updateTodoStatus(rowNumber, checked);
+  } else {
+    console.error('TodoManager not initialized');
+    UIUtils.showNotification('TODO機能が初期化されていません', 'error');
+  }
+}
+
+/**
+ * TODO追加のグローバルハンドラー
+ * @param {Event} event - フォームイベント
+ */
+function handleAddTodo(event) {
+  event.preventDefault();
+  
+  if (!todoManager) {
+    console.error('TodoManager not initialized');
+    UIUtils.showNotification('TODO機能が初期化されていません', 'error');
+    return;
+  }
+  
+  const formData = new FormData(event.target);
+  const todoText = formData.get('todoText');
+  const dueDate = formData.get('dueDate');
+  
+  if (!todoText || !dueDate) {
+    UIUtils.showNotification('TODO内容と期限日を入力してください', 'error');
+    return;
+  }
+  
+  todoManager.addTodo(todoText, dueDate);
+  
+  // フォームをリセット
+  event.target.reset();
+}
+
+/**
+ * TODO削除のグローバルハンドラー
+ * @param {number} rowNumber - 行番号
+ */
+function handleTodoDelete(rowNumber) {
+  if (todoManager) {
+    todoManager.deleteTodo(rowNumber);
+  } else {
+    console.error('TodoManager not initialized');
+    UIUtils.showNotification('TODO機能が初期化されていません', 'error');
+  }
+}
+
+console.log('Todo manager loaded successfully');
+</script>
+
+<!-- TODO専用スタイル -->
+<style>
+.todo-list {
+  margin-top: 20px;
+}
+
+.todo-section {
+  margin-bottom: 30px;
+}
+
+.todo-section-title {
+  font-size: 18px;
+  font-weight: bold;
+  margin-bottom: 15px;
+  color: #333;
+  border-bottom: 2px solid #e0e0e0;
+  padding-bottom: 8px;
+}
+
+.completed-section .todo-section-title {
+  color: #888;
+}
+
+.todo-items {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.todo-item {
+  display: flex;
+  align-items: center;
+  padding: 15px;
+  background: #fff;
+  border: 1px solid #e0e0e0;
+  border-radius: 8px;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+  transition: all 0.2s ease;
+}
+
+.todo-item:hover {
+  box-shadow: 0 4px 8px rgba(0,0,0,0.15);
+  transform: translateY(-1px);
+}
+
+.todo-item.completed {
+  background: #f9f9f9;
+  border-style: dashed;
+  border-color: #ccc;
+  opacity: 0.7;
+}
+
+.todo-item.completed .todo-text {
+  text-decoration: line-through;
+  color: #888;
+}
+
+.todo-checkbox {
+  margin-right: 15px;
+}
+
+.todo-checkbox input[type="checkbox"] {
+  width: 20px;
+  height: 20px;
+  cursor: pointer;
+}
+
+.todo-content {
+  flex: 1;
+}
+
+.todo-text {
+  font-size: 16px;
+  font-weight: 500;
+  margin-bottom: 5px;
+  line-height: 1.4;
+}
+
+.todo-meta {
+  display: flex;
+  gap: 15px;
+  font-size: 14px;
+  color: #666;
+}
+
+.todo-date {
+  font-weight: 500;
+}
+
+.todo-timestamp {
+  color: #999;
+}
+
+.todo-actions {
+  margin-left: 15px;
+}
+
+.todo-delete-btn {
+  background: none;
+  border: none;
+  font-size: 18px;
+  cursor: pointer;
+  padding: 5px;
+  border-radius: 4px;
+  transition: background-color 0.2s ease;
+}
+
+.todo-delete-btn:hover {
+  background-color: #ffebee;
+}
+
+.add-todo-section {
+  margin-top: 30px;
+  padding: 20px;
+  background: #f8f9fa;
+  border-radius: 8px;
+  border: 1px solid #e9ecef;
+}
+
+.add-todo-form {
+  margin-top: 15px;
+}
+
+.form-row {
+  display: flex;
+  gap: 20px;
+  margin-bottom: 15px;
+}
+
+.form-group {
+  flex: 1;
+}
+
+.form-group label {
+  display: block;
+  margin-bottom: 5px;
+  font-weight: 500;
+  color: #333;
+}
+
+.form-group input {
+  width: 100%;
+  padding: 10px;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  font-size: 14px;
+}
+
+.form-group input:focus {
+  outline: none;
+  border-color: #007bff;
+  box-shadow: 0 0 0 2px rgba(0,123,255,0.25);
+}
+
+.form-actions {
+  text-align: right;
+}
+
+.add-todo-btn {
+  background-color: #28a745;
+  color: white;
+  border: none;
+  padding: 10px 20px;
+  border-radius: 4px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background-color 0.2s ease;
+}
+
+.add-todo-btn:hover {
+  background-color: #218838;
+}
+
+.no-data {
+  text-align: center;
+  padding: 40px 20px;
+  color: #666;
+}
+
+.no-data p {
+  margin: 10px 0;
+  font-size: 16px;
+}
+
+.no-data-sub {
+  font-size: 14px;
+  color: #999;
+}
+
+/* レスポンシブ対応 */
+@media (max-width: 768px) {
+  .form-row {
+    flex-direction: column;
+    gap: 15px;
+  }
+  
+  .todo-item {
+    padding: 12px;
+  }
+  
+  .todo-meta {
+    flex-direction: column;
+    gap: 5px;
+  }
+  
+  .add-todo-section {
+    padding: 15px;
+  }
+}
+</style>

@@ -52,6 +52,8 @@ function loadConfigAsDict() {
  */
 function checkAccess() {
   try {
+    const config = loadConfigAsDict();
+    const ALLOWED_USERS = config["allowed_users"];
     const userEmail = Session.getActiveUser().getEmail();
     Logger.log(`取得したユーザーメール: "${userEmail}"`);
     Logger.log(`ユーザーメールの型: ${typeof userEmail}`);
@@ -63,8 +65,6 @@ function checkAccess() {
     }
     
     const trimmedEmail = userEmail.trim().toLowerCase();
-    const config = loadConfigAsDict();
-    const ALLOWED_USERS = config["allowed_users"];
     const allowedEmailsLower = ALLOWED_USERS.map(email => email.toLowerCase());
     
     Logger.log(`正規化されたユーザーメール: "${trimmedEmail}"`);
@@ -1107,5 +1107,80 @@ function createWeekendSampleData(weekStart) {
   } catch (error) {
     Logger.log('Error in createWeekendSampleData:', error.message);
     throw error;
+  }
+}
+
+// ========================================
+// TODO機能統合（統合アプリ用）
+// ========================================
+
+/**
+ * 統合アプリ用のTODOデータ取得関数
+ * @param {string} weekStart - 週開始日
+ * @returns {Object} TODOデータ
+ */
+function getTodoDataForApp(weekStart) {
+  try {
+    return getTodoDataForWeek(weekStart);
+  } catch (error) {
+    Logger.log('Error in getTodoDataForApp:', error.message);
+    return {
+      success: false,
+      message: 'TODOデータの取得に失敗しました: ' + error.message,
+      data: []
+    };
+  }
+}
+
+/**
+ * 統合アプリ用のTODO状態更新関数
+ * @param {number} rowNumber - 行番号
+ * @param {boolean} doneStatus - Done状態
+ * @returns {Object} 更新結果
+ */
+function updateTodoForApp(rowNumber, doneStatus) {
+  try {
+    return updateTodoDoneStatus(rowNumber, doneStatus);
+  } catch (error) {
+    Logger.log('Error in updateTodoForApp:', error.message);
+    return {
+      success: false,
+      message: 'TODO状態の更新に失敗しました: ' + error.message
+    };
+  }
+}
+
+/**
+ * 統合アプリ用のTODO追加関数
+ * @param {string} todoText - TODOテキスト
+ * @param {string} dueDate - 期限日
+ * @returns {Object} 追加結果
+ */
+function addTodoForApp(todoText, dueDate) {
+  try {
+    return addTodoItem(todoText, dueDate);
+  } catch (error) {
+    Logger.log('Error in addTodoForApp:', error.message);
+    return {
+      success: false,
+      message: 'TODOの追加に失敗しました: ' + error.message
+    };
+  }
+}
+
+/**
+ * 統合アプリ用のTODO削除関数
+ * @param {number} rowNumber - 行番号
+ * @returns {Object} 削除結果
+ */
+function deleteTodoForApp(rowNumber) {
+  try {
+    return deleteTodoItem(rowNumber);
+  } catch (error) {
+    Logger.log('Error in deleteTodoForApp:', error.message);
+    return {
+      success: false,
+      message: 'TODOの削除に失敗しました: ' + error.message
+    };
   }
 }

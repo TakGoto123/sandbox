@@ -517,6 +517,10 @@
     // タブの状態を更新
     document.getElementById('mealTab').classList.remove('active');
     document.getElementById('weekendTab').classList.add('active');
+    const todoTab = document.getElementById('todoTab');
+    if (todoTab) {
+      todoTab.classList.remove('active');
+    }
     
     // ページタイトルを更新
     document.getElementById('pageTitle').textContent = 'Weekend - 買い物リスト';
@@ -524,6 +528,10 @@
     // コンテンツエリアの表示を切り替え
     document.getElementById('mealContent').style.display = 'none';
     document.getElementById('weekendContent').style.display = 'block';
+    const todoContent = document.getElementById('todoContent');
+    if (todoContent) {
+      todoContent.style.display = 'none';
+    }
     
     // 買い出しリストボタンを非表示
     const shoppingSection = document.getElementById('shoppingListSection');

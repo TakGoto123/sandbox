@@ -8,6 +8,7 @@
       this.isInitialized = false;
       this.mealPlanApp = null;
       this.weekendManager = null;
+      this.todoManager = null;
     }
 
     /**
@@ -97,7 +98,7 @@
 
     /**
      * ページを切り替え
-     * @param {string} pageName - ページ名 ('meal' または 'weekend')
+     * @param {string} pageName - ページ名 ('meal', 'weekend', 'todo')
      */
     switchToPage(pageName) {
       console.log(`Switching to page: ${pageName}`);
@@ -106,6 +107,8 @@
         showMealPlan();
       } else if (pageName === 'weekend') {
         showWeekend();
+      } else if (pageName === 'todo') {
+        showTodo();
       } else {
         console.error('Unknown page:', pageName);
         UIUtils.showNotification('不明なページです: ' + pageName, 'error');
@@ -130,6 +133,12 @@
         const newWeekStart = WeekManager.calculateNewWeekStart(appState.getCurrentWeekStart(), offset);
         appState.setCurrentWeekStart(newWeekStart);
         this.weekendManager.loadInitialData();
+      } else if (currentPage === 'todo' && this.todoManager) {
+        console.log('Calling changeWeek on todo manager');
+        // TodoManagerの週変更処理
+        const newWeekStart = WeekManager.calculateNewWeekStart(appState.getCurrentWeekStart(), offset);
+        appState.setCurrentWeekStart(newWeekStart);
+        this.todoManager.changeWeek(newWeekStart);
       } else {
         console.error('No active app instance found for page:', currentPage);
       }
@@ -146,6 +155,9 @@
       if (newPage === 'weekend' && !this.weekendManager) {
         // WeekendManagerの参照を取得
         this.weekendManager = window.weekendManager;
+      } else if (newPage === 'todo' && !this.todoManager) {
+        // TodoManagerの参照を取得
+        this.todoManager = window.todoManager;
       }
     }
 
@@ -309,6 +321,48 @@
     document.addEventListener('DOMContentLoaded', () => {
       console.log('DOM loaded, waiting for server data...');
     });
+  }
+
+  /**
+   * TODOページを表示
+   */
+  function showTodo() {
+    console.log('Switching to TODO page');
+    appState.setCurrentPage('todo');
+    
+    // タブの状態を更新
+    document.getElementById('mealTab').classList.remove('active');
+    document.getElementById('weekendTab').classList.remove('active');
+    document.getElementById('todoTab').classList.add('active');
+    
+    // ページタイトルを更新
+    document.getElementById('pageTitle').textContent = 'TODO一覧';
+    
+    // コンテンツエリアの表示を切り替え
+    document.getElementById('mealContent').style.display = 'none';
+    document.getElementById('weekendContent').style.display = 'none';
+    document.getElementById('todoContent').style.display = 'block';
+    
+    // 買い出しリストボタンを非表示
+    const shoppingSection = document.getElementById('shoppingListSection');
+    if (shoppingSection) {
+      shoppingSection.style.display = 'none';
+    }
+    
+    // TODOマネージャーを初期化または更新
+    if (!window.todoManager) {
+      const currentWeekStart = appState.getCurrentWeekStart();
+      window.todoManager = initializeTodoManager(currentWeekStart);
+      
+      // AppControllerに参照を設定
+      if (appController) {
+        appController.todoManager = window.todoManager;
+      }
+    } else {
+      // 既に初期化済みの場合は現在の週でデータを再読み込み
+      const currentWeekStart = appState.getCurrentWeekStart();
+      window.todoManager.changeWeek(currentWeekStart);
+    }
   }
 
   console.log('App controller loaded successfully');

@@ -337,6 +337,10 @@
     // タブの状態を更新
     document.getElementById('mealTab').classList.add('active');
     document.getElementById('weekendTab').classList.remove('active');
+    const todoTab = document.getElementById('todoTab');
+    if (todoTab) {
+      todoTab.classList.remove('active');
+    }
     
     // ページタイトルを更新
     document.getElementById('pageTitle').textContent = '献立一覧';
@@ -344,6 +348,10 @@
     // コンテンツエリアの表示を切り替え
     document.getElementById('mealContent').style.display = 'block';
     document.getElementById('weekendContent').style.display = 'none';
+    const todoContent = document.getElementById('todoContent');
+    if (todoContent) {
+      todoContent.style.display = 'none';
+    }
     
     // 買い出しリストボタンを表示
     const shoppingSection = document.getElementById('shoppingListSection');

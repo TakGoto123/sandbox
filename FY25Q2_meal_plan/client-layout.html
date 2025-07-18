@@ -6,6 +6,7 @@
     <div class="page-tabs">
       <button class="tab-btn active" id="mealTab" onclick="showMealPlan()">献立</button>
       <button class="tab-btn" id="weekendTab" onclick="showWeekend()">Weekend</button>
+      <button class="tab-btn" id="todoTab" onclick="showTodo()">TODO</button>
     </div>
   </div>
 
@@ -40,6 +41,11 @@
     <!-- Weekend表示エリア -->
     <div class="weekend-container" id="weekendContent" style="display: none;">
       <div id="weekendList" class="loading">Weekend データを読み込んでいます...</div>
+    </div>
+    
+    <!-- TODO表示エリア -->
+    <div class="todo-container" id="todoContent" style="display: none;">
+      <div id="todoList" class="loading">TODO データを読み込んでいます...</div>
     </div>
   </div>
 </div>
