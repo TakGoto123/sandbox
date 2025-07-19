@@ -377,7 +377,6 @@ function initializeMealPlanApp(headers, data, config) {
   try {
     console.log('Initializing MealPlanApp...');
     mealPlanAppInstance = new MealPlanApp(headers, data, config);
-    window.MealPlanApp = mealPlanAppInstance; // 後方互換性のため
     mealPlanAppInstance.initialize();
     console.log('MealPlanApp initialized successfully');
     return mealPlanAppInstance;
