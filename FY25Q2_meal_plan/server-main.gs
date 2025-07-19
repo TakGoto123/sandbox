@@ -12,8 +12,8 @@
  * A列: パラメータ名、B列以降: 値（配列も可）
  * @returns {Object} 辞書形式の設定
  */
-function loadConfigAsDict() {
-  const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName('config');
+function loadConfigAsDict(sheet_name) {
+  const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(sheet_name);
   if (!sheet) throw new Error('config シートが見つかりません');
 
   const range = sheet.getDataRange();
@@ -33,7 +33,9 @@ function loadConfigAsDict() {
   return configDict;
 }
 
-const CONFIG = loadConfigAsDict();
+const PRIVATE_CONFIG = loadConfigAsDict("private-config");
+const COMMON_CONFIG = loadConfigAsDict("common-config");
+const CONFIG = { ...PRIVATE_CONFIG, ...COMMON_CONFIG};
 Logger.log("CONFIG:\n" + CONFIG);
 
 // ========================================
@@ -227,9 +229,8 @@ function normalizeDataRowWithHyperlinks(row, dataRange, rowIndex) {
 function createHtmlTemplate(mealData) {
   const template = HtmlService.createTemplateFromFile('client-main');
   template.headers = mealData.headers;
- 
   template.data = mealData.data;
-  template.config = CONFIG;
+  template.config = COMMON_CONFIG;
   return template;
 }
 
