@@ -6,7 +6,18 @@
 class MealPlanApp {
   constructor(headers, data, config) {
     this.headers = headers;
-    this.allData = data;
+    this.raw_meal_plan = data;
+    this.structured_meal_plan = {};
+    this.raw_meal_plan.forEach(([date, type, menu, memo, id]) => {
+      this.structured_meal_plan[id] = {
+        id: id,
+        date: date,
+        type: type,
+        menu: menu,
+        memo: memo
+      };
+    });
+
     this.config = config;
     
     // 設定のフォールバック
@@ -37,7 +48,7 @@ class MealPlanApp {
   logDebugInfo() {
     console.log('=== 献立アプリ初期化 ===');
     console.log('Headers:', this.headers);
-    console.log('Data count:', this.allData ? this.allData.length : 0);
+    console.log('Data count:', this.raw_meal_plan ? this.raw_meal_plan.length : 0);
     console.log('Config:', this.config);
     console.log('Current week start:', this.currentWeekStart);
   }
@@ -70,8 +81,8 @@ class MealPlanApp {
     });
 
     // データを分類
-    if (this.allData && Array.isArray(this.allData)) {
-      this.allData.forEach(([dateRaw, type, menu, memo]) => {
+    if (this.raw_meal_plan && Array.isArray(this.raw_meal_plan)) {
+      this.raw_meal_plan.forEach(([dateRaw, type, menu, memo, id]) => {
         // 日付の正規化処理を改善
         let dateStr = '';
         if (dateRaw instanceof Date) {
@@ -95,8 +106,6 @@ class MealPlanApp {
           return; // 予期しない型はスキップ
         }
         
-        console.log('Processing data:', { dateRaw, dateStr, type, menu, memo });
-        
         // menuが{text: url: }形式のオブジェクトまたは文字列の場合の処理
         let parsedMenu = menu;
         
@@ -118,7 +127,7 @@ class MealPlanApp {
         }
         
         if (weekData[dateStr] && mealTypes.includes(type)) {
-          weekData[dateStr][type].push({ menu: parsedMenu || '', memo: memo || '' });
+          weekData[dateStr][type].push({ menu: parsedMenu || '', memo: memo || '', id: id });
         }
       });
     }
@@ -137,8 +146,8 @@ class MealPlanApp {
     let html = '<table><thead><tr>';
     
     // ヘッダー行
-    if (this.headers && Array.isArray(this.headers)) {
-      this.headers.forEach(header => {
+    if (this.headers && Array.isArray(this.config.MEAL_PLAN_HEADERS)) {
+      this.config.MEAL_PLAN_HEADERS.forEach(header => {
         html += `<th>${UIUtils.escapeHtml(header)}</th>`;
       });
     }
@@ -216,14 +225,9 @@ class MealPlanApp {
             
             // 削除ボタンセル
             const menuText = typeof meal.menu === 'object' && meal.menu !== null && meal.menu.text ? meal.menu.text : meal.menu;
-            const deleteButtonData = {
-              date: date,
-              type: type,
-              menuText: menuText,
-              memo: meal.memo
-            };
+            let menu_id = meal.id;
             html += `<td class="action-cell">
-              <button class="delete-meal-btn" onclick="openDeleteMealModal('${UIUtils.escapeForAttribute(JSON.stringify(deleteButtonData))}')" title="削除">
+              <button class="delete-meal-btn" onclick="handleDeleteButtonPushed('${menu_id}')" title="削除">
                 🗑️
               </button>
             </td>`;
@@ -474,6 +478,17 @@ function hideProcessingState() {
     btn.classList.remove('processing');
   }
 }
+
+
+function handleDeleteButtonPushed(id) {
+  if (modalHandlerInstance) {
+    console.warn("modalHandlerInstance.structured_meal_plan", mealPlanAppInstance.structured_meal_plan);
+    modalHandlerInstance.openDeleteModal(mealPlanAppInstance.structured_meal_plan[id]);
+  } else {
+    console.error('ModalHandler instance not found');
+  }
+}
+
 
 console.log('Meal plan module loaded successfully');
 </script>

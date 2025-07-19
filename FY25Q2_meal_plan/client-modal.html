@@ -554,11 +554,8 @@ class ModalHandler {
    * 削除確認モーダルを開く
    * @param {string} dataStr - 削除対象データのJSON文字列
    */
-  openDeleteModal(dataStr) {
+  openDeleteModal(data) {
     try {
-      const data = JSON.parse(dataStr);
-      console.log('Opening delete modal for:', data);
-      
       // 削除確認モーダルの情報を設定
       document.getElementById('deleteDate').textContent = WeekManager.formatDisplayDate(data.date);
       document.getElementById('deleteType').textContent = data.type;
@@ -637,11 +634,8 @@ class ModalHandler {
     try {
       // Google Apps Scriptの削除関数を呼び出し
       const result = await callGasFunction(
-        'deleteMealData',
-        this.deleteTargetData.date,
-        this.deleteTargetData.type,
-        this.deleteTargetData.menuText,
-        this.deleteTargetData.memo
+        'deleteMealDataByIdForApp',
+        this.deleteTargetData.id
       );
       
       if (result.success) {
@@ -717,18 +711,6 @@ function openAddMealModal(date, type) {
 function closeAddMealModal() {
   if (modalHandlerInstance) {
     modalHandlerInstance.closeModal();
-  } else {
-    console.error('ModalHandler instance not found');
-  }
-}
-
-/**
- * 削除確認モーダルを開く（グローバル関数）
- * @param {string} dataStr - 削除対象データのJSON文字列
- */
-function openDeleteMealModal(dataStr) {
-  if (modalHandlerInstance) {
-    modalHandlerInstance.openDeleteModal(dataStr);
   } else {
     console.error('ModalHandler instance not found');
   }

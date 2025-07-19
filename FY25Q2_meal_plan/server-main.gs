@@ -178,7 +178,7 @@ function normalizeDataRow(row) {
  * @returns {Array} 正規化されたデータ行
  */
 function normalizeDataRowWithHyperlinks(row, dataRange, rowIndex) {
-  const [date, type, menu, memo] = row;
+  const [date, type, menu, memo, id] = row;
   
   // メニュー列（3列目）のハイパーリンク情報を取得
   let processedMenu = String(menu || '').trim();
@@ -214,7 +214,8 @@ function normalizeDataRowWithHyperlinks(row, dataRange, rowIndex) {
     formatDate(date),
     String(type || '').trim(),
     processedMenu,
-    String(memo || '').trim()
+    String(memo || '').trim(),
+    id
   ];
 }
 
@@ -475,11 +476,12 @@ function addMealData(date, type, menu, memo) {
     const menuUrl = menu && menu.url ? menu.url : null;
     
     // 新しい行を追加
-    const newRow = [date, type, menuText, memo || ''];
+    const id = created_timestamp = new Date().toISOString();
+    const newRow = [date, type, menuText, memo || '', id];
     const lastRow = sheet.getLastRow() + 1;
     
     // データを追加
-    sheet.getRange(lastRow, 1, 1, 4).setValues([newRow]);
+    sheet.getRange(lastRow, 1, 1, 5).setValues([newRow]);
     
     // URLが有効な場合、ハイパーリンクとして設定
     if (menuUrl && isValidUrl(menuUrl)) {
@@ -743,15 +745,8 @@ function testFetchTitleFromUrl() {
   Logger.log('=== fetchTitleFromUrl テスト終了 ===');
 }
 
-/**
- * スプレッドシートから指定された行を削除
- * @param {string} date - 日付（yyyy-MM-dd形式）
- * @param {string} type - 区分（弁当、夜）
- * @param {string} menuText - メニューテキスト（識別用）
- * @param {string} memo - メモ（識別用）
- * @returns {Object} 結果オブジェクト
- */
-function deleteMealData(date, type, menuText, memo) {
+
+function deleteMealDataByIdForApp(del_id) {
   try {
     const sheet = getSheet(CONFIG.MEAL_PLAN_SHEET_NAME);
     const dataRange = sheet.getDataRange();
@@ -766,39 +761,20 @@ function deleteMealData(date, type, menuText, memo) {
     
     // ヘッダー行を除いてデータを検索
     let targetRowIndex = -1;
+    let date, type, menuText, memo;
     for (let i = 1; i < values.length; i++) {
-      const [rowDate, rowType, rowMenu, rowMemo] = values[i];
+      const [rowDate, rowType, rowMenu, rowMemo, id] = values[i];
       
-      // 日付の正規化
-      const normalizedRowDate = formatDate(rowDate);
-      
-      // メニューテキストの正規化（ハイパーリンクの場合も考慮）
-      let normalizedRowMenu = String(rowMenu || '').trim();
-      
-      // ハイパーリンクの場合、セルの数式をチェック
-      try {
-        const menuCell = sheet.getRange(i + 1, 3); // i+1は1ベースのため
-        const formula = menuCell.getFormula();
-        if (formula && formula.includes('HYPERLINK')) {
-          const hyperlinkMatch = formula.match(/=HYPERLINK\("([^"]+)",\s*"([^"]+)"\)/);
-          if (hyperlinkMatch) {
-            normalizedRowMenu = hyperlinkMatch[2]; // テキスト部分を使用
-          }
-        }
-      } catch (error) {
-        Logger.log(`Error checking hyperlink for row ${i}: ${error.message}`);
-      }
-      
-      // データが一致するかチェック
-      if (normalizedRowDate === date && 
-          String(rowType || '').trim() === type && 
-          normalizedRowMenu === menuText && 
-          String(rowMemo || '').trim() === memo) {
+      if (id === del_id) {
         targetRowIndex = i + 1; // スプレッドシートは1ベース
+        date = rowDate;
+        type = rowType;
+        menuText = rowMenu;
+        memo = rowMemo;
         break;
       }
-    }
-    
+    } 
+
     if (targetRowIndex === -1) {
       Logger.log('削除対象が見つかりません:', { date, type, menuText, memo });
       return {
@@ -866,21 +842,6 @@ function testFetchTitleFromUrlDetailed() {
   });
   
   Logger.log('=== fetchTitleFromUrl 詳細テスト終了 ===');
-}
-
-/**
- * テスト用関数 - 献立削除のテスト
- */
-function testDeleteMealData() {
-  // テスト用のデータを追加してから削除
-  const addResult = addMealData('2025-01-08', '弁当', { text: 'テスト削除料理', url: null }, 'テスト削除メモ');
-  Logger.log('Add result for delete test:', addResult);
-  
-  if (addResult.success) {
-    // 追加したデータを削除
-    const deleteResult = deleteMealData('2025-01-08', '弁当', 'テスト削除料理', 'テスト削除メモ');
-    Logger.log('Delete result:', deleteResult);
-  }
 }
 
 /**
