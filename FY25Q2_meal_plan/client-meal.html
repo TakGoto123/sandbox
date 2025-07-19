@@ -9,15 +9,8 @@ class MealPlanApp {
     this.raw_meal_plan = data;
     this.structured_meal_plan = {};
     this.raw_meal_plan.forEach(([date, type, menu, memo, id]) => {
-      this.structured_meal_plan[id] = {
-        id: id,
-        date: date,
-        type: type,
-        menu: menu,
-        memo: memo
-      };
+      this.structured_meal_plan[id] = { id, date, type, menu, memo };
     });
-
     this.config = config;
     
     // 設定のフォールバック
@@ -40,6 +33,10 @@ class MealPlanApp {
     
     // デバッグ情報をコンソールに出力
     this.logDebugInfo();
+  }
+
+  setData(data) {
+    this.raw
   }
 
   /**
