@@ -501,16 +501,18 @@ class ModalHandler {
     
     try {
       // Google Apps Scriptの関数を呼び出し
-      const result = await callGasFunction('addMealData', date, type, menuObj, memo);
+      const id = new Date().toISOString();
+      const result = await callGasFunction('addMealData', date, type, menuObj, memo, id);
       
       if (result.success) {
         this.showMessage('献立を追加しました', 'success');
         
         // データを更新してテーブルを再描画
         setTimeout(() => {
-          const menuData = menuObj.url ? JSON.stringify(menuObj) : menuObj.text;
-          if (mealPlanAppInstance && mealPlanAppInstance.allData) {
-            mealPlanAppInstance.allData.push([date, type, menuData, memo]);
+          const menuData = menuObj.url ? menuObj : menuObj.text;
+          if (mealPlanAppInstance && mealPlanAppInstance.local_meal_plan) {
+            mealPlanAppInstance.local_meal_plan[id] = {id, date, type, menu: menuData, memo};
+            console.warn("local_meal_plan: ", mealPlanAppInstance.local_meal_plan[id]);
           }
           
           // テーブルを再描画
@@ -644,16 +646,8 @@ class ModalHandler {
         // データを更新してテーブルを再描画
         setTimeout(() => {
           // ローカルデータからも削除
-          if (mealPlanAppInstance && mealPlanAppInstance.allData) {
-            mealPlanAppInstance.allData = mealPlanAppInstance.allData.filter(([date, type, menu, memo]) => {
-              const menuText = typeof menu === 'object' && menu !== null && menu.text ? menu.text : menu;
-              return !(
-                date === this.deleteTargetData.date &&
-                type === this.deleteTargetData.type &&
-                menuText === this.deleteTargetData.menuText &&
-                memo === this.deleteTargetData.memo
-              );
-            });
+          if (mealPlanAppInstance && mealPlanAppInstance.deleted_meal) {
+            mealPlanAppInstance.deleted_meal[this.deleteTargetData.id] = true;  // Should not be direct.
           }
           
           // テーブルを再描画

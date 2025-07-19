@@ -467,7 +467,7 @@ function formatWeekDisplay(weekStart) {
  * @param {string} memo - メモ
  * @returns {Object} 結果オブジェクト
  */
-function addMealData(date, type, menu, memo) {
+function addMealData(date, type, menu, memo, id=null) {
   try {
     const sheet = getSheet(CONFIG.MEAL_PLAN_SHEET_NAME);
     
@@ -476,7 +476,9 @@ function addMealData(date, type, menu, memo) {
     const menuUrl = menu && menu.url ? menu.url : null;
     
     // 新しい行を追加
-    const id = created_timestamp = new Date().toISOString();
+    if (!id) {
+      id = created_timestamp = new Date().toISOString();
+    }
     const newRow = [date, type, menuText, memo || '', id];
     const lastRow = sheet.getLastRow() + 1;
     

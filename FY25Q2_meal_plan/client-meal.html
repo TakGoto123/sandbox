@@ -11,6 +11,8 @@ class MealPlanApp {
     this.raw_meal_plan.forEach(([date, type, menu, memo, id]) => {
       this.structured_meal_plan[id] = { id, date, type, menu, memo };
     });
+    this.local_meal_plan = {};
+    this.deleted_meal = {};
     this.config = config;
     
     // 設定のフォールバック
@@ -78,8 +80,11 @@ class MealPlanApp {
     });
 
     // データを分類
-    if (this.raw_meal_plan && Array.isArray(this.raw_meal_plan)) {
-      this.raw_meal_plan.forEach(([dateRaw, type, menu, memo, id]) => {
+    const merged_data = {...this.structured_meal_plan, ...this.local_meal_plan};
+    if (Object.keys(merged_data).length > 0) {
+      for (const {id, date, type, menu, memo} of Object.values(merged_data)) {
+        let dateRaw = date;
+      
         // 日付の正規化処理を改善
         let dateStr = '';
         if (dateRaw instanceof Date) {
@@ -123,10 +128,10 @@ class MealPlanApp {
           }
         }
         
-        if (weekData[dateStr] && mealTypes.includes(type)) {
+        if (weekData[dateStr] && mealTypes.includes(type) && !(this.deleted_meal[id])) {
           weekData[dateStr][type].push({ menu: parsedMenu || '', memo: memo || '', id: id });
         }
-      });
+      }
     }
 
     return weekData;
