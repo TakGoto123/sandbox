@@ -1,259 +1,201 @@
 <script>
+/**
+ * 献立表示アプリケーション
+ * モジュール化されたJavaScriptクラス
+ */
+class MealPlanApp {
+  constructor(headers, data, config) {
+    this.headers = headers;
+    this.allData = data;
+    this.config = config;
+    
+    // 設定のフォールバック
+    if (!this.config) {
+      this.config = {
+        SHEET_NAME: 'menu-schedule',
+        MEAL_TYPES: ['弁当', '夜'],
+        DATE_FORMAT: 'yyyy-MM-dd',
+        TIMEZONE: 'Asia/Tokyo',
+        WEEK_START_DAY: 6,
+        WORK_DAYS: [2, 3, 4, 5, 6]
+      };
+    }
+    
+    // 現在の週の開始日を設定（共通ユーティリティを使用）
+    this.currentWeekStart = WeekManager.getCurrentWeekStart();
+    
+    // アプリケーション状態と同期
+    appState.setCurrentWeekStart(this.currentWeekStart);
+    
+    // デバッグ情報をコンソールに出力
+    this.logDebugInfo();
+  }
+
   /**
-   * 献立表示アプリケーション
-   * モジュール化されたJavaScriptクラス
+   * デバッグ情報をコンソールに出力
    */
-  class MealPlanApp {
-    constructor(headers, data, config) {
-      this.headers = headers;
-      this.allData = data;
-      this.config = config;
-      
-      // 設定のフォールバック
-      if (!this.config) {
-        this.config = {
-          SHEET_NAME: 'menu-schedule',
-          MEAL_TYPES: ['弁当', '夜'],
-          DATE_FORMAT: 'yyyy-MM-dd',
-          TIMEZONE: 'Asia/Tokyo',
-          WEEK_START_DAY: 6,
-          WORK_DAYS: [2, 3, 4, 5, 6]
-        };
-      }
-      
-      // 現在の週の開始日を設定（共通ユーティリティを使用）
-      this.currentWeekStart = WeekManager.getCurrentWeekStart();
-      
-      // アプリケーション状態と同期
-      appState.setCurrentWeekStart(this.currentWeekStart);
-      
-      // デバッグ情報をコンソールに出力
-      this.logDebugInfo();
-    }
+  logDebugInfo() {
+    console.log('=== 献立アプリ初期化 ===');
+    console.log('Headers:', this.headers);
+    console.log('Data count:', this.allData ? this.allData.length : 0);
+    console.log('Config:', this.config);
+    console.log('Current week start:', this.currentWeekStart);
+  }
 
-    /**
-     * デバッグ情報をコンソールに出力
-     */
-    logDebugInfo() {
-      console.log('=== 献立アプリ初期化 ===');
-      console.log('Headers:', this.headers);
-      console.log('Data count:', this.allData ? this.allData.length : 0);
-      console.log('Config:', this.config);
-      console.log('Current week start:', this.currentWeekStart);
-    }
+  /**
+   * 週を変更
+   * @param {number} offset - 週のオフセット（-1: 前週, 1: 次週）
+   */
+  changeWeek(offset) {
+    this.currentWeekStart = WeekManager.calculateNewWeekStart(this.currentWeekStart, offset);
+    appState.setCurrentWeekStart(this.currentWeekStart);
+    this.renderTable();
+  }
 
-    /**
-     * 週を変更
-     * @param {number} offset - 週のオフセット（-1: 前週, 1: 次週）
-     */
-    changeWeek(offset) {
-      this.currentWeekStart = WeekManager.calculateNewWeekStart(this.currentWeekStart, offset);
-      appState.setCurrentWeekStart(this.currentWeekStart);
-      this.renderTable();
-    }
-
-    /**
-     * 週のデータを整理
-     * @param {Array<string>} weekDates - 週の日付配列
-     * @returns {Object} 整理されたデータ
-     */
-    organizeWeekData(weekDates) {
-      const mealTypes = this.config?.MEAL_TYPES || ['弁当', '夜'];
-      const weekData = {};
-      
-      // 初期化
-      weekDates.forEach(date => {
-        weekData[date] = {};
-        mealTypes.forEach(type => {
-          weekData[date][type] = [];
-        });
+  /**
+   * 週のデータを整理
+   * @param {Array<string>} weekDates - 週の日付配列
+   * @returns {Object} 整理されたデータ
+   */
+  organizeWeekData(weekDates) {
+    const mealTypes = this.config?.MEAL_TYPES || ['弁当', '夜'];
+    const weekData = {};
+    
+    // 初期化
+    weekDates.forEach(date => {
+      weekData[date] = {};
+      mealTypes.forEach(type => {
+        weekData[date][type] = [];
       });
+    });
 
-      // データを分類
-      if (this.allData && Array.isArray(this.allData)) {
-        this.allData.forEach(([dateRaw, type, menu, memo]) => {
-          // 日付の正規化処理を改善
-          let dateStr = '';
-          if (dateRaw instanceof Date) {
-            dateStr = WeekManager.formatDate(dateRaw);
-          } else if (typeof dateRaw === 'string') {
-            // 既にyyyy-MM-dd形式の場合はそのまま使用
-            if (/^\d{4}-\d{2}-\d{2}$/.test(dateRaw.trim())) {
-              dateStr = dateRaw.trim();
-            } else {
-              // その他の文字列形式の場合はDateオブジェクトに変換
-              const parsedDate = new Date(dateRaw);
-              if (!isNaN(parsedDate.getTime())) {
-                dateStr = WeekManager.formatDate(parsedDate);
-              } else {
-                console.warn('Invalid date format:', dateRaw);
-                return; // 無効な日付はスキップ
-              }
-            }
+    // データを分類
+    if (this.allData && Array.isArray(this.allData)) {
+      this.allData.forEach(([dateRaw, type, menu, memo]) => {
+        // 日付の正規化処理を改善
+        let dateStr = '';
+        if (dateRaw instanceof Date) {
+          dateStr = WeekManager.formatDate(dateRaw);
+        } else if (typeof dateRaw === 'string') {
+          // 既にyyyy-MM-dd形式の場合はそのまま使用
+          if (/^\d{4}-\d{2}-\d{2}$/.test(dateRaw.trim())) {
+            dateStr = dateRaw.trim();
           } else {
-            console.warn('Unexpected date type:', typeof dateRaw, dateRaw);
-            return; // 予期しない型はスキップ
+            // その他の文字列形式の場合はDateオブジェクトに変換
+            const parsedDate = new Date(dateRaw);
+            if (!isNaN(parsedDate.getTime())) {
+              dateStr = WeekManager.formatDate(parsedDate);
+            } else {
+              console.warn('Invalid date format:', dateRaw);
+              return; // 無効な日付はスキップ
+            }
           }
-          
-          console.log('Processing data:', { dateRaw, dateStr, type, menu, memo });
-          
-          // menuが{text: url: }形式のオブジェクトまたは文字列の場合の処理
-          let parsedMenu = menu;
-          
-          // 既にオブジェクト形式の場合はそのまま使用
-          if (typeof menu === 'object' && menu !== null && menu.text && menu.url) {
+        } else {
+          console.warn('Unexpected date type:', typeof dateRaw, dateRaw);
+          return; // 予期しない型はスキップ
+        }
+        
+        console.log('Processing data:', { dateRaw, dateStr, type, menu, memo });
+        
+        // menuが{text: url: }形式のオブジェクトまたは文字列の場合の処理
+        let parsedMenu = menu;
+        
+        // 既にオブジェクト形式の場合はそのまま使用
+        if (typeof menu === 'object' && menu !== null && menu.text && menu.url) {
+          parsedMenu = menu;
+        }
+        // 文字列でJSON形式の場合はパース
+        else if (typeof menu === 'string' && menu.includes('{') && menu.includes('}')) {
+          try {
+            const parsed = JSON.parse(menu);
+            if (parsed.text && parsed.url) {
+              parsedMenu = { text: parsed.text, url: parsed.url };
+            }
+          } catch (e) {
+            // JSONパースに失敗した場合は元の値を使用
             parsedMenu = menu;
           }
-          // 文字列でJSON形式の場合はパース
-          else if (typeof menu === 'string' && menu.includes('{') && menu.includes('}')) {
-            try {
-              const parsed = JSON.parse(menu);
-              if (parsed.text && parsed.url) {
-                parsedMenu = { text: parsed.text, url: parsed.url };
-              }
-            } catch (e) {
-              // JSONパースに失敗した場合は元の値を使用
-              parsedMenu = menu;
-            }
-          }
-          
-          if (weekData[dateStr] && mealTypes.includes(type)) {
-            weekData[dateStr][type].push({ menu: parsedMenu || '', memo: memo || '' });
-          }
-        });
-      }
-
-      return weekData;
+        }
+        
+        if (weekData[dateStr] && mealTypes.includes(type)) {
+          weekData[dateStr][type].push({ menu: parsedMenu || '', memo: memo || '' });
+        }
+      });
     }
 
-    /**
-     * テーブルのHTMLを生成
-     * @param {Array<string>} weekDates - 週の日付配列
-     * @param {Object} weekData - 整理されたデータ
-     * @returns {string} テーブルのHTML
-     */
-    generateTableHTML(weekDates, weekData) {
-      const mealTypes = this.config?.MEAL_TYPES || ['弁当', '夜'];
-      let html = '<table><thead><tr>';
-      
-      // ヘッダー行
-      if (this.headers && Array.isArray(this.headers)) {
-        this.headers.forEach(header => {
-          html += `<th>${UIUtils.escapeHtml(header)}</th>`;
-        });
-      }
-      // 削除列のヘッダーを追加
-      html += '<th>操作</th>';
-      html += '</tr></thead><tbody>';
+    return weekData;
+  }
 
-      // 各日付の総行数を計算（日付セルのrowspan用）
-      const dateRowCounts = {};
-      weekDates.forEach(date => {
-        let totalRows = 0;
-        mealTypes.forEach(type => {
-          const meals = weekData[date][type];
-          // データがある場合はデータ行数 + 追加ボタン行、ない場合は追加ボタン行のみ
-          totalRows += meals.length > 0 ? meals.length + 1 : 1;
-        });
-        dateRowCounts[date] = totalRows;
+  /**
+   * テーブルのHTMLを生成
+   * @param {Array<string>} weekDates - 週の日付配列
+   * @param {Object} weekData - 整理されたデータ
+   * @returns {string} テーブルのHTML
+   */
+  generateTableHTML(weekDates, weekData) {
+    const mealTypes = this.config?.MEAL_TYPES || ['弁当', '夜'];
+    let html = '<table><thead><tr>';
+    
+    // ヘッダー行
+    if (this.headers && Array.isArray(this.headers)) {
+      this.headers.forEach(header => {
+        html += `<th>${UIUtils.escapeHtml(header)}</th>`;
       });
+    }
+    // 削除列のヘッダーを追加
+    html += '<th>操作</th>';
+    html += '</tr></thead><tbody>';
 
-      let globalRowIndex = 0;
+    // 各日付の総行数を計算（日付セルのrowspan用）
+    const dateRowCounts = {};
+    weekDates.forEach(date => {
+      let totalRows = 0;
+      mealTypes.forEach(type => {
+        const meals = weekData[date][type];
+        // データがある場合はデータ行数 + 追加ボタン行、ない場合は追加ボタン行のみ
+        totalRows += meals.length > 0 ? meals.length + 1 : 1;
+      });
+      dateRowCounts[date] = totalRows;
+    });
+
+    let globalRowIndex = 0;
+    
+    // データ行を生成
+    weekDates.forEach((date, dateIndex) => {
+      let isFirstDateRow = true;
       
-      // データ行を生成
-      weekDates.forEach((date, dateIndex) => {
-        let isFirstDateRow = true;
-        
-        mealTypes.forEach((type, typeIndex) => {
-          const meals = weekData[date][type];
-          // データがある場合はデータ行数 + 追加ボタン行、ない場合は追加ボタン行のみ
-          const typeRowspan = meals.length > 0 ? meals.length + 1 : 1;
-          let isFirstTypeRow = true;
+      mealTypes.forEach((type, typeIndex) => {
+        const meals = weekData[date][type];
+        // データがある場合はデータ行数 + 追加ボタン行、ない場合は追加ボタン行のみ
+        const typeRowspan = meals.length > 0 ? meals.length + 1 : 1;
+        let isFirstTypeRow = true;
 
-          // データがある場合のみ既存の献立行を表示
-          if (meals.length > 0) {
-            meals.forEach((meal, mealIndex) => {
-              // 行のCSSクラスを決定
-              let rowClasses = [];
-              
-              // 日付グループの境界線
-              if (dateIndex > 0 && isFirstDateRow && isFirstTypeRow && mealIndex === 0) {
-                rowClasses.push('date-group-border');
-              }
-              
-              // 区分グループの境界線（同じ日付内で区分が変わる場合）
-              if (typeIndex > 0 && isFirstTypeRow && mealIndex === 0) {
-                rowClasses.push('type-group-border');
-              }
-              
-              // 交互の行色（日付ごとに切り替え）
-              if (dateIndex % 2 === 0) {
-                rowClasses.push('row-even');
-              } else {
-                rowClasses.push('row-odd');
-              }
-              
-              const rowClassAttr = rowClasses.length > 0 ? ` class="${rowClasses.join(' ')}"` : '';
-              html += `<tr${rowClassAttr}>`;
-              
-              // 日付セル（日付の最初の行のみ）
-              if (isFirstDateRow) {
-                html += `<td class="date-cell" rowspan="${dateRowCounts[date]}">${WeekManager.formatDisplayDate(date)}</td>`;
-                isFirstDateRow = false;
-              }
-              
-              // 区分セル（区分の最初の行のみ）
-              if (isFirstTypeRow) {
-                html += `<td class="type-cell" rowspan="${typeRowspan}">${UIUtils.escapeHtml(type)}</td>`;
-                isFirstTypeRow = false;
-              }
-              
-              // メニューセル
-              html += `<td class="menu-cell">${UIUtils.renderMenuCell(meal.menu)}</td>`;
-              
-              // メモセル
-              html += `<td class="memo-cell">${UIUtils.escapeHtml(meal.memo)}</td>`;
-              
-              // 削除ボタンセル
-              const menuText = typeof meal.menu === 'object' && meal.menu !== null && meal.menu.text ? meal.menu.text : meal.menu;
-              const deleteButtonData = {
-                date: date,
-                type: type,
-                menuText: menuText,
-                memo: meal.memo
-              };
-              html += `<td class="action-cell">
-                <button class="delete-meal-btn" onclick="openDeleteMealModal('${UIUtils.escapeForAttribute(JSON.stringify(deleteButtonData))}')" title="削除">
-                  🗑️
-                </button>
-              </td>`;
-              
-              html += '</tr>';
-              globalRowIndex++;
-            });
-          }
-          
-          // 追加ボタン行
-          let addRowClasses = ['add-meal-row'];
-          
-          // データがない場合の境界線処理
-          if (meals.length === 0) {
+        // データがある場合のみ既存の献立行を表示
+        if (meals.length > 0) {
+          meals.forEach((meal, mealIndex) => {
+            // 行のCSSクラスを決定
+            let rowClasses = [];
+            
             // 日付グループの境界線
-            if (dateIndex > 0 && isFirstDateRow && isFirstTypeRow) {
-              addRowClasses.push('date-group-border');
+            if (dateIndex > 0 && isFirstDateRow && isFirstTypeRow && mealIndex === 0) {
+              rowClasses.push('date-group-border');
             }
             
             // 区分グループの境界線（同じ日付内で区分が変わる場合）
-            if (typeIndex > 0 && isFirstTypeRow) {
-              addRowClasses.push('type-group-border');
+            if (typeIndex > 0 && isFirstTypeRow && mealIndex === 0) {
+              rowClasses.push('type-group-border');
             }
-          }
-          
-          const addRowClassAttr = addRowClasses.length > 0 ? ` class="${addRowClasses.join(' ')}"` : '';
-          html += `<tr${addRowClassAttr}>`;
-          
-          // データがない場合の日付・区分セル
-          if (meals.length === 0) {
+            
+            // 交互の行色（日付ごとに切り替え）
+            if (dateIndex % 2 === 0) {
+              rowClasses.push('row-even');
+            } else {
+              rowClasses.push('row-odd');
+            }
+            
+            const rowClassAttr = rowClasses.length > 0 ? ` class="${rowClasses.join(' ')}"` : '';
+            html += `<tr${rowClassAttr}>`;
+            
             // 日付セル（日付の最初の行のみ）
             if (isFirstDateRow) {
               html += `<td class="date-cell" rowspan="${dateRowCounts[date]}">${WeekManager.formatDisplayDate(date)}</td>`;
@@ -265,216 +207,274 @@
               html += `<td class="type-cell" rowspan="${typeRowspan}">${UIUtils.escapeHtml(type)}</td>`;
               isFirstTypeRow = false;
             }
+            
+            // メニューセル
+            html += `<td class="menu-cell">${UIUtils.renderMenuCell(meal.menu)}</td>`;
+            
+            // メモセル
+            html += `<td class="memo-cell">${UIUtils.escapeHtml(meal.memo)}</td>`;
+            
+            // 削除ボタンセル
+            const menuText = typeof meal.menu === 'object' && meal.menu !== null && meal.menu.text ? meal.menu.text : meal.menu;
+            const deleteButtonData = {
+              date: date,
+              type: type,
+              menuText: menuText,
+              memo: meal.memo
+            };
+            html += `<td class="action-cell">
+              <button class="delete-meal-btn" onclick="openDeleteMealModal('${UIUtils.escapeForAttribute(JSON.stringify(deleteButtonData))}')" title="削除">
+                🗑️
+              </button>
+            </td>`;
+            
+            html += '</tr>';
+            globalRowIndex++;
+          });
+        }
+        
+        // 追加ボタン行
+        let addRowClasses = ['add-meal-row'];
+        
+        // データがない場合の境界線処理
+        if (meals.length === 0) {
+          // 日付グループの境界線
+          if (dateIndex > 0 && isFirstDateRow && isFirstTypeRow) {
+            addRowClasses.push('date-group-border');
           }
           
-          html += `<td class="menu-cell"><button class="add-meal-btn" onclick="openAddMealModal('${date}', '${type}')" title="献立を追加">+</button></td>`;
-          html += `<td class="memo-cell"></td>`;
-          html += `<td class="action-cell"></td>`;
-          html += `</tr>`;
-        });
+          // 区分グループの境界線（同じ日付内で区分が変わる場合）
+          if (typeIndex > 0 && isFirstTypeRow) {
+            addRowClasses.push('type-group-border');
+          }
+        }
+        
+        const addRowClassAttr = addRowClasses.length > 0 ? ` class="${addRowClasses.join(' ')}"` : '';
+        html += `<tr${addRowClassAttr}>`;
+        
+        // データがない場合の日付・区分セル
+        if (meals.length === 0) {
+          // 日付セル（日付の最初の行のみ）
+          if (isFirstDateRow) {
+            html += `<td class="date-cell" rowspan="${dateRowCounts[date]}">${WeekManager.formatDisplayDate(date)}</td>`;
+            isFirstDateRow = false;
+          }
+          
+          // 区分セル（区分の最初の行のみ）
+          if (isFirstTypeRow) {
+            html += `<td class="type-cell" rowspan="${typeRowspan}">${UIUtils.escapeHtml(type)}</td>`;
+            isFirstTypeRow = false;
+          }
+        }
+        
+        html += `<td class="menu-cell"><button class="add-meal-btn" onclick="openAddMealModal('${date}', '${type}')" title="献立を追加">+</button></td>`;
+        html += `<td class="memo-cell"></td>`;
+        html += `<td class="action-cell"></td>`;
+        html += `</tr>`;
       });
+    });
 
-      html += '</tbody></table>';
-      return html;
-    }
-
-    /**
-     * テーブルを描画
-     */
-    renderTable() {
-      try {
-        console.log('=== テーブル描画開始 ===');
-        console.log('Current week start:', this.currentWeekStart);
-        
-        const weekDates = WeekManager.getWeekDates(this.currentWeekStart, this.config?.WORK_DAYS);
-        console.log('Week dates:', weekDates);
-        
-        // 週表示を更新
-        const weekDisplayElement = document.getElementById('weekDisplay');
-        if (weekDisplayElement) {
-          weekDisplayElement.textContent = WeekManager.formatWeekDisplay(weekDates);
-        }
-
-        // データを整理
-        const weekData = this.organizeWeekData(weekDates);
-        console.log('Organized data:', weekData);
-
-        // テーブルHTML生成
-        const tableHTML = this.generateTableHTML(weekDates, weekData);
-        
-        // テーブルを更新
-        const tableElement = document.getElementById('mealTable');
-        if (tableElement) {
-          tableElement.innerHTML = tableHTML;
-        }
-
-        console.log('=== テーブル描画完了 ===');
-      } catch (error) {
-        console.error('Table render error:', error);
-        UIUtils.showError('テーブルの描画中にエラーが発生しました: ' + error.message, 'mealTable');
-      }
-    }
-
-    /**
-     * アプリケーションを初期化
-     */
-    initialize() {
-      console.log('=== 献立アプリケーション初期化 ===');
-      this.renderTable();
-    }
-  }
-
-  // グローバル変数として宣言
-  let mealPlanAppInstance = null;
-
-  /**
-   * 献立ページを表示
-   */
-  function showMealPlan() {
-    console.log('Switching to meal plan page');
-    appState.setCurrentPage('meal');
-    
-    // タブの状態を更新
-    document.getElementById('mealTab').classList.add('active');
-    document.getElementById('weekendTab').classList.remove('active');
-    const todoTab = document.getElementById('todoTab');
-    if (todoTab) {
-      todoTab.classList.remove('active');
-    }
-    
-    // ページタイトルを更新
-    document.getElementById('pageTitle').textContent = '献立一覧';
-    
-    // コンテンツエリアの表示を切り替え
-    document.getElementById('mealContent').style.display = 'block';
-    document.getElementById('weekendContent').style.display = 'none';
-    const todoContent = document.getElementById('todoContent');
-    if (todoContent) {
-      todoContent.style.display = 'none';
-    }
-    
-    // 買い出しリストボタンを表示
-    const shoppingSection = document.getElementById('shoppingListSection');
-    if (shoppingSection) {
-      shoppingSection.style.display = 'block';
-    }
-    
-    // 献立テーブルを再描画
-    if (mealPlanAppInstance) {
-      // アプリケーション状態と同期
-      mealPlanAppInstance.currentWeekStart = appState.getCurrentWeekStart();
-      mealPlanAppInstance.renderTable();
-    }
+    html += '</tbody></table>';
+    return html;
   }
 
   /**
-   * 献立アプリケーションを初期化
-   * @param {Array} headers - ヘッダー配列
-   * @param {Array} data - データ配列
-   * @param {Object} config - 設定オブジェクト
+   * テーブルを描画
    */
-  function initializeMealPlanApp(headers, data, config) {
+  renderTable() {
     try {
-      console.log('Initializing MealPlanApp...');
-      mealPlanAppInstance = new MealPlanApp(headers, data, config);
-      window.MealPlanApp = mealPlanAppInstance; // 後方互換性のため
-      mealPlanAppInstance.initialize();
-      console.log('MealPlanApp initialized successfully');
-      return mealPlanAppInstance;
-    } catch (error) {
-      console.error('Failed to initialize MealPlanApp:', error);
-      UIUtils.showError('献立アプリケーションの初期化に失敗しました: ' + error.message, 'mealTable');
-      return null;
-    }
-  }
-
-  /**
-   * 買い出しリスト作成
-   */
-  function createShoppingList() {
-    // 現在表示中の週の日付を取得
-    const weekDates = WeekManager.getWeekDates(mealPlanAppInstance.currentWeekStart, mealPlanAppInstance.config?.WORK_DAYS);
-    const startDate = weekDates[0]; // 既に文字列形式（yyyy-MM-dd）
-    const endDate = weekDates[weekDates.length - 1]; // 既に文字列形式（yyyy-MM-dd）
-    
-    // 確認ダイアログを表示
-    const confirmed = confirm(
-      '買い出しリストを作成します。\n\n' +
-      `対象期間: ${startDate} ～ ${endDate}\n` +
-      '・処理には数分かかる場合があります\n' +
-      '・既存の買い出しリストは上書きされます\n\n' +
-      '続行しますか？'
-    );
-    
-    if (!confirmed) {
-      return;
-    }
-    
-    // 処理状態を表示
-    showProcessingState();
-    
-    // サーバー関数を呼び出し（ForAppサフィックス付き）
-    google.script.run
-      .withSuccessHandler(onShoppingListCreated)
-      .withFailureHandler(onShoppingListError)
-      .createShoppingListForPeriodForApp(startDate, endDate);
-  }
-
-  /**
-   * 買い出しリスト作成成功時の処理
-   * @param {Object} result - サーバーからの結果
-   */
-  function onShoppingListCreated(result) {
-    hideProcessingState();
-    
-    if (result.success) {
-      const message = `${result.message}\n\n` +
-                     `対象期間: ${result.period}\n` +
-                     `シート名: ${result.sheetName}\n\n` +
-                     'Weekendタブで確認しますか？';
+      console.log('=== テーブル描画開始 ===');
+      console.log('Current week start:', this.currentWeekStart);
       
-      if (confirm(message)) {
-        // Weekendタブに切り替え
-        showWeekend();
+      const weekDates = WeekManager.getWeekDates(this.currentWeekStart, this.config?.WORK_DAYS);
+      console.log('Week dates:', weekDates);
+      
+      // 週表示を更新
+      const weekDisplayElement = document.getElementById('weekDisplay');
+      if (weekDisplayElement) {
+        weekDisplayElement.textContent = WeekManager.formatWeekDisplay(weekDates);
       }
-    } else {
-      alert('エラー: ' + result.message);
+
+      // データを整理
+      const weekData = this.organizeWeekData(weekDates);
+      console.log('Organized data:', weekData);
+
+      // テーブルHTML生成
+      const tableHTML = this.generateTableHTML(weekDates, weekData);
+      
+      // テーブルを更新
+      const tableElement = document.getElementById('mealTable');
+      if (tableElement) {
+        tableElement.innerHTML = tableHTML;
+      }
+
+      console.log('=== テーブル描画完了 ===');
+    } catch (error) {
+      console.error('Table render error:', error);
+      UIUtils.showError('テーブルの描画中にエラーが発生しました: ' + error.message, 'mealTable');
     }
   }
 
   /**
-   * 買い出しリスト作成エラー時の処理
-   * @param {Object} error - エラーオブジェクト
+   * アプリケーションを初期化
    */
-  function onShoppingListError(error) {
-    hideProcessingState();
-    console.error('Shopping list creation error:', error);
-    alert('買い出しリスト作成中にエラーが発生しました。\n\n' + error.message);
+  initialize() {
+    console.log('=== 献立アプリケーション初期化 ===');
+    this.renderTable();
   }
+}
 
-  /**
-   * 処理中状態を表示
-   */
-  function showProcessingState() {
-    const btn = document.getElementById('createShoppingListBtn');
-    if (btn) {
-      btn.disabled = true;
-      btn.innerHTML = '⏳ 作成中... (数分お待ちください)';
-      btn.classList.add('processing');
+// グローバル変数として宣言
+let mealPlanAppInstance = null;
+
+/**
+ * 献立ページを表示
+ */
+function showMealPlan() {
+  console.log('Switching to meal plan page');
+  appState.setCurrentPage('meal');
+  
+  // タブの状態を更新
+  document.getElementById('mealTab').classList.add('active');
+  document.getElementById('weekendTab').classList.remove('active');
+  const todoTab = document.getElementById('todoTab');
+  if (todoTab) {
+    todoTab.classList.remove('active');
+  }
+  
+  // ページタイトルを更新
+  document.getElementById('pageTitle').textContent = '献立一覧';
+  
+  // コンテンツエリアの表示を切り替え
+  document.getElementById('mealContent').style.display = 'block';
+  document.getElementById('weekendContent').style.display = 'none';
+  const todoContent = document.getElementById('todoContent');
+  if (todoContent) {
+    todoContent.style.display = 'none';
+  }
+  
+  // 買い出しリストボタンを表示
+  const shoppingSection = document.getElementById('shoppingListSection');
+  if (shoppingSection) {
+    shoppingSection.style.display = 'block';
+  }
+  
+  // 献立テーブルを再描画
+  if (mealPlanAppInstance) {
+    // アプリケーション状態と同期
+    mealPlanAppInstance.currentWeekStart = appState.getCurrentWeekStart();
+    mealPlanAppInstance.renderTable();
+  }
+}
+
+/**
+ * 献立アプリケーションを初期化
+ * @param {Array} headers - ヘッダー配列
+ * @param {Array} data - データ配列
+ * @param {Object} config - 設定オブジェクト
+ */
+function initializeMealPlanApp(headers, data, config) {
+  try {
+    console.log('Initializing MealPlanApp...');
+    mealPlanAppInstance = new MealPlanApp(headers, data, config);
+    window.MealPlanApp = mealPlanAppInstance; // 後方互換性のため
+    mealPlanAppInstance.initialize();
+    console.log('MealPlanApp initialized successfully');
+    return mealPlanAppInstance;
+  } catch (error) {
+    console.error('Failed to initialize MealPlanApp:', error);
+    UIUtils.showError('献立アプリケーションの初期化に失敗しました: ' + error.message, 'mealTable');
+    return null;
+  }
+}
+
+/**
+ * 買い出しリスト作成
+ */
+function createShoppingList() {
+  // 現在表示中の週の日付を取得
+  const weekDates = WeekManager.getWeekDates(mealPlanAppInstance.currentWeekStart, mealPlanAppInstance.config?.WORK_DAYS);
+  const startDate = weekDates[0]; // 既に文字列形式（yyyy-MM-dd）
+  const endDate = weekDates[weekDates.length - 1]; // 既に文字列形式（yyyy-MM-dd）
+  
+  // 確認ダイアログを表示
+  const confirmed = confirm(
+    '買い出しリストを作成します。\n\n' +
+    `対象期間: ${startDate} ～ ${endDate}\n` +
+    '・処理には数分かかる場合があります\n' +
+    '・既存の買い出しリストは上書きされます\n\n' +
+    '続行しますか？'
+  );
+  
+  if (!confirmed) {
+    return;
+  }
+  
+  // 処理状態を表示
+  showProcessingState();
+  
+  // サーバー関数を呼び出し（ForAppサフィックス付き）
+  google.script.run
+    .withSuccessHandler(onShoppingListCreated)
+    .withFailureHandler(onShoppingListError)
+    .createShoppingListForPeriodForApp(startDate, endDate);
+}
+
+/**
+ * 買い出しリスト作成成功時の処理
+ * @param {Object} result - サーバーからの結果
+ */
+function onShoppingListCreated(result) {
+  hideProcessingState();
+  
+  if (result.success) {
+    const message = `${result.message}\n\n` +
+                    `対象期間: ${result.period}\n` +
+                    `シート名: ${result.sheetName}\n\n` +
+                    'Weekendタブで確認しますか？';
+    
+    if (confirm(message)) {
+      // Weekendタブに切り替え
+      showWeekend();
     }
+  } else {
+    alert('エラー: ' + result.message);
   }
+}
 
-  /**
-   * 処理中状態を非表示
-   */
-  function hideProcessingState() {
-    const btn = document.getElementById('createShoppingListBtn');
-    if (btn) {
-      btn.disabled = false;
-      btn.innerHTML = '🛒 買い出しリストを作成';
-      btn.classList.remove('processing');
-    }
+/**
+ * 買い出しリスト作成エラー時の処理
+ * @param {Object} error - エラーオブジェクト
+ */
+function onShoppingListError(error) {
+  hideProcessingState();
+  console.error('Shopping list creation error:', error);
+  alert('買い出しリスト作成中にエラーが発生しました。\n\n' + error.message);
+}
+
+/**
+ * 処理中状態を表示
+ */
+function showProcessingState() {
+  const btn = document.getElementById('createShoppingListBtn');
+  if (btn) {
+    btn.disabled = true;
+    btn.innerHTML = '⏳ 作成中... (数分お待ちください)';
+    btn.classList.add('processing');
   }
+}
 
-  console.log('Meal plan module loaded successfully');
+/**
+ * 処理中状態を非表示
+ */
+function hideProcessingState() {
+  const btn = document.getElementById('createShoppingListBtn');
+  if (btn) {
+    btn.disabled = false;
+    btn.innerHTML = '🛒 買い出しリストを作成';
+    btn.classList.remove('processing');
+  }
+}
+
+console.log('Meal plan module loaded successfully');
 </script>
