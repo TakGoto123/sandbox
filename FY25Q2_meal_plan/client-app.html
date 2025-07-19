@@ -198,20 +198,6 @@
     }
 
     /**
-     * サーバーから渡されたJSONデータを安全にパース
-     * @param {string} jsonString - JSON文字列
-     * @returns {*} パースされたデータ
-     */
-    static parseServerData(jsonString) {
-      try {
-        return JSON.parse(jsonString);
-      } catch (error) {
-        console.error('JSON parse error:', error);
-        return null;
-      }
-    }
-
-    /**
      * クリーンアップ処理
      */
     cleanup() {
@@ -249,17 +235,10 @@
    * @param {string} dataJson - データのJSON文字列
    * @param {string} configJson - 設定のJSON文字列
    */
-  function initializeApp(headersJson, dataJson, configJson) {
+  function initializeApp(headers, data, config) {
     console.log('=== アプリケーション初期化開始 ===');
     
     try {
-      // JSON文字列をパース
-      const headers = AppController.parseServerData(headersJson);
-      const data = AppController.parseServerData(dataJson);
-      const config = AppController.parseServerData(configJson);
-
-      console.log('Parsed data:', { headers, dataCount: data?.length, config });
-
       // AppControllerを初期化
       if (!appController) {
         appController = new AppController();

@@ -31,14 +31,15 @@ function initializeMainApp() {
   console.log('=== メインアプリケーション初期化 ===');
 
   // サーバーから渡されたデータを取得
-  const headersJson = '<?= JSON.stringify(headers) ?>';
-  const dataJson = '<?= JSON.stringify(data) ?>';
-  const configJson = '<?= JSON.stringify(config) ?>';
+  const meal_plan = JSON.parse('<?= JSON.stringify(meal_plan) ?>');
+  const shopping_items = JSON.parse('<?= JSON.stringify(shopping_items) ?>');
+  const todo_items = JSON.parse('<?= JSON.stringify(todo_items) ?>');
+  const config = JSON.parse('<?= JSON.stringify(config) ?>');
+  console.log('Parsed data:', meal_plan, shopping_items, todo_items, config);
 
-  console.log('Server data received, initializing AppController...');
-  
   // AppControllerを通じて初期化
-  initializeApp(headersJson, dataJson, configJson);
+  console.log('Server data received, initializing AppController...');
+  initializeApp(meal_plan.headers, meal_plan.data, config);
 }
 
 // ページ読み込み完了時に初期化

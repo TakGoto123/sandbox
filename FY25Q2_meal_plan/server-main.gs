@@ -92,8 +92,9 @@ function doGet(e) {
     // アクセス制御チェック
     const userEmail = checkAccess();
     
-    const mealData = getMealData();
-    const template = createHtmlTemplate(mealData);
+    const meal_plan = getMealData();
+    // Logger.log("Debug: meal_plan: " + JSON.stringify(meal_plan));
+    const template = createHtmlTemplate(meal_plan);
     return template.evaluate().setTitle('献立一覧');
   } catch (error) {
     Logger.log(`Access denied or error: ${error.message}`);
@@ -122,7 +123,7 @@ function include(filename) {
  * @returns {Object} ヘッダーとデータを含むオブジェクト
  */
 function getMealData() {
-  const sheet = getSheet(CONFIG.SHEET_NAME);
+  const sheet = getSheet(CONFIG.MEAL_PLAN_SHEET_NAME);
   const rawData = sheet.getDataRange().getValues();
   
   if (rawData.length === 0) {
@@ -226,10 +227,11 @@ function normalizeDataRowWithHyperlinks(row, dataRange, rowIndex) {
  * @param {Object} mealData - 献立データ
  * @returns {HtmlTemplate} HTMLテンプレート
  */
-function createHtmlTemplate(mealData) {
+function createHtmlTemplate(meal_plan, shopping_items=null, todo_items=null) {
   const template = HtmlService.createTemplateFromFile('client-main');
-  template.headers = mealData.headers;
-  template.data = mealData.data;
+  template.meal_plan = meal_plan;
+  template.shopping_items = shopping_items;
+  template.todo_items = todo_items;
   template.config = COMMON_CONFIG;
   return template;
 }
@@ -466,7 +468,7 @@ function formatWeekDisplay(weekStart) {
  */
 function addMealData(date, type, menu, memo) {
   try {
-    const sheet = getSheet(CONFIG.SHEET_NAME);
+    const sheet = getSheet(CONFIG.MEAL_PLAN_SHEET_NAME);
     
     // メニューオブジェクトからテキストを取得
     const menuText = menu && menu.text ? menu.text : '';
@@ -751,7 +753,7 @@ function testFetchTitleFromUrl() {
  */
 function deleteMealData(date, type, menuText, memo) {
   try {
-    const sheet = getSheet(CONFIG.SHEET_NAME);
+    const sheet = getSheet(CONFIG.MEAL_PLAN_SHEET_NAME);
     const dataRange = sheet.getDataRange();
     const values = dataRange.getValues();
     
