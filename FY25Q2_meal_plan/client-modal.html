@@ -21,22 +21,21 @@
       
       <div class="form-group">
         <label class="form-label">メニュー名 *</label>
-        <input type="text" id="menuName" class="form-input" placeholder="料理名またはURLを入力してください" required>
+        <input type="text" id="menuName" class="form-input" placeholder="料理名を入力してください" required>
         <ul id="menuSuggestions" class="suggestions-list"></ul>
-        <div id="menuPreview" style="margin-top: 10px; display: none;">
-          <div style="background: #f8f9fa; border: 1px solid #dee2e6; border-radius: 4px; padding: 10px;">
-            <strong>プレビュー:</strong>
-            <div id="menuPreviewContent" style="margin-top: 5px;"></div>
-          </div>
-        </div>
-        <small style="color: #7f8c8d; font-size: 0.9em; margin-top: 5px; display: block;">
-          URLを入力すると自動でタイトルを取得してハイパーリンクに変換されます
+      </div>
+
+      <div class="form-group">
+        <label class="form-label">URL</label>
+        <input type="url" id="menuUrl" class="form-input" placeholder="レシピのURLを入力してください">
+        <small id="menuPreviewContent" style="color: #7f8c8d; font-size: 0.9em;">
+          URLを入力するとタイトルが自動でメニュー名に反映されます
         </small>
       </div>
-      
+
       <div class="form-group">
         <label class="form-label">メモ</label>
-        <textarea id="menuMemo" class="form-input form-textarea" placeholder="メモがあれば入力してください"></textarea>
+        <textarea id="menuMemo" class="form-input form-textarea" placeholder="材料の情報を入力してください"></textarea>
       </div>
       
       <div class="modal-actions">
@@ -257,11 +256,19 @@ class ModalHandler {
    * メニュー名入力フィールドの変更を監視してURL自動処理
    */
   setupMenuNameAutoProcessing() {
+    console.log("Debug: setupMenuNameAutoProcessing called");
     const menuNameInput = document.getElementById('menuName');
+    const urlInput = document.getElementById('menuUrl');
     const memoInput = document.getElementById('menuMemo');
     const suggestionBox = document.getElementById('menuSuggestions');
 
-    if (!menuNameInput || !memoInput || !suggestionBox) return;
+    if (!menuNameInput || !memoInput || !suggestionBox || !urlInput) {
+      setTimeout(() => {
+        this.setupMenuNameAutoProcessing();
+      }, 10);
+      console.log("Debug: Retry setupMenuNameAutoProcessing");
+      return;
+    }
     let currentIndex = -1;
 
     const updateSuggestions = (inputValue) => {
@@ -289,7 +296,8 @@ class ModalHandler {
     };
 
     // === 1. URLペーストイベント ===
-    menuNameInput.addEventListener('paste', (e) => {
+    urlInput.addEventListener('paste', (e) => {
+      console.log("Debug: paste is called");
       setTimeout(() => {
         const value = e.target.value.trim();
         if (this.isValidUrl(value)) {
@@ -301,16 +309,12 @@ class ModalHandler {
     // --- 入力時（通常/空白） ---
     menuNameInput.addEventListener('input', (e) => {
       const value = e.target.value;
-      if (this.isValidUrl(value)) {
-        this.autoFetchTitleFromUrl(value);
-        suggestionBox.innerHTML = '';
-        return;
-      }
       updateSuggestions(value);
     });
 
     // --- フォーカス時（はじめてでも全候補表示） ---
     menuNameInput.addEventListener('focus', () => {
+      console.log("Debug: focus is called");
       if (menuNameInput.value.trim() === '') {
         updateSuggestions('');
       }
@@ -405,6 +409,10 @@ class ModalHandler {
       if (result.success) {
         this.showMenuPreview(result.title, result.url, false);
         // 入力フィールドの値は変更しない（URLのまま保持）
+        const menuNameInput = document.getElementById('menuName');
+        if (menuNameInput && !menuNameInput.value.trim()) {
+          menuNameInput.value = result.title;
+        }        
       } else {
         this.showMenuPreview('タイトルの取得に失敗しました', url, false);
       }
@@ -421,18 +429,14 @@ class ModalHandler {
    * @param {boolean} loading - ローディング中かどうか
    */
   showMenuPreview(title, url, loading = false) {
-    const previewDiv = document.getElementById('menuPreview');
     const previewContent = document.getElementById('menuPreviewContent');
-    
-    if (!previewDiv || !previewContent) return;
+    if (!previewContent) return;
     
     if (loading) {
       previewContent.innerHTML = `<span style="color: #6c757d;"><i class="loading-spinner" style="margin-right: 5px;"></i>${title}</span>`;
     } else {
       previewContent.innerHTML = `<a href="${url}" target="_blank" style="color: #007bff; text-decoration: none;">${title}</a>`;
     }
-    
-    previewDiv.style.display = 'block';
   }
 
   /**
