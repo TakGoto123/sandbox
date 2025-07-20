@@ -34,18 +34,18 @@ function initializeMainApp() {
   console.log('=== メインアプリケーション初期化 ===');
 
   // サーバーから渡されたデータを取得
-  const meal_plan = JSON.parse('<?= JSON.stringify(meal_plan) ?>');
-  const shopping_items = JSON.parse('<?= JSON.stringify(shopping_items) ?>');
-  const todo_items = JSON.parse('<?= JSON.stringify(todo_items) ?>');
+  const mealPlan = JSON.parse('<?= JSON.stringify(mealPlan) ?>');
+  const shoppingItems = JSON.parse('<?= JSON.stringify(shoppingItems) ?>');
+  const todoItems = JSON.parse('<?= JSON.stringify(todoItems) ?>');
   const config = JSON.parse('<?= JSON.stringify(config) ?>');
-  console.log('Parsed data:', meal_plan, shopping_items, todo_items, config);
+  console.log('Parsed data:', mealPlan, shoppingItems, todoItems, config);
 
   // dayjsを日本語にロケール
   dayjs.locale('ja');
 
   // AppControllerを通じて初期化
   console.log('Server data received, initializing AppController...');
-  initializeApp(meal_plan.headers, meal_plan.data, config);
+  initializeApp(mealPlan.headers, mealPlan.data, config);
 }
 
 // ページ読み込み完了時に初期化

@@ -92,9 +92,9 @@ function doGet(e) {
     // アクセス制御チェック
     const userEmail = checkAccess();
     
-    const meal_plan = getMealData();
-    // Logger.log("Debug: meal_plan: " + JSON.stringify(meal_plan));
-    const template = createHtmlTemplate(meal_plan);
+    const mealPlan = getMealData();
+    // Logger.log("Debug: mealPlan: " + JSON.stringify(mealPlan));
+    const template = createHtmlTemplate(mealPlan);
     return template.evaluate().setTitle('献立一覧');
   } catch (error) {
     Logger.log(`Access denied or error: ${error.message}`);
@@ -228,11 +228,11 @@ function normalizeDataRowWithHyperlinks(row, dataRange, rowIndex) {
  * @param {Object} mealData - 献立データ
  * @returns {HtmlTemplate} HTMLテンプレート
  */
-function createHtmlTemplate(meal_plan, shopping_items=null, todo_items=null) {
+function createHtmlTemplate(mealPlan, shoppingItems=null, todoItems=null) {
   const template = HtmlService.createTemplateFromFile('client-main');
-  template.meal_plan = meal_plan;
-  template.shopping_items = shopping_items;
-  template.todo_items = todo_items;
+  template.mealPlan = mealPlan;
+  template.shoppingItems = shoppingItems;
+  template.todoItems = todoItems;
   template.config = COMMON_CONFIG;
   return template;
 }
