@@ -1,0 +1,274 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>Nested Sortable with Fixed Date Headers</title>
+  <style>
+    ul {
+      list-style: none;
+      padding-left: 0;
+      margin: 0;
+    }
+
+    .date-header {
+      background-color: #ddd;
+      padding: 10px;
+      font-weight: bold;
+      border-top: 1px solid #aaa;
+      font-size: 1rem;
+    }
+
+    .meal-item {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      padding: 10px;
+      background: #f9f9f9;
+      border-bottom: 1px solid #ccc;
+      cursor: grab;
+      font-size: 0.95rem;
+    }
+
+    .drag-handle {
+      margin-right: 10px;
+      cursor: move;
+      flex: 0 0 auto;
+    }
+
+    .col-name,
+    .col-amount,
+    .col-checkbox,
+    .col-link {
+      padding: 4px 6px;
+    }
+
+    .col-name {
+      flex: 1 1 100%;
+      font-weight: bold;
+    }
+
+    .col-amount {
+      flex: 1 1 60%;
+      text-align: left;
+      color: #555;
+    }
+
+    .col-checkbox {
+      flex: 0 0 40px;
+      text-align: center;
+    }
+
+    .col-link {
+      flex: 1 1 100%;
+      text-align: left;
+      font-size: 0.9rem;
+    }
+
+    @media (min-width: 600px) {
+      .meal-item {
+        flex-wrap: nowrap;
+      }
+      .col-name {
+        flex: 1 1 150px;
+      }
+      .col-amount {
+        flex: 0 0 100px;
+        text-align: right;
+      }
+      .col-link {
+        flex: 1 1 auto;
+      }
+    }
+  </style>
+</head>
+<body>
+
+<h2>日付ごとの献立（メニューのみ並び替え可能）</h2>
+
+<ul id="meal-list-root">
+  <!-- 静的に書かれた例 -->
+  <li>
+    <div class="date-header">7月20日（土） 昼</div>
+    <ul class="meal-group" data-date="2025-07-20" data-type="lunch">
+      <li class="meal-item" data-id="static1">
+        <span class="drag-handle">☰</span>
+        <div class="col-name">ハンバーグ</div>
+        <div class="col-amount">2人分</div>
+        <div class="col-checkbox"><input type="checkbox"></div>
+        <div class="col-link"><a href="#">レシピ</a></div>
+      </li>
+      <li class="meal-item" data-id="static2">
+        <span class="drag-handle">☰</span>
+        <div class="col-name">カレーライス</div>
+        <div class="col-amount">4人分</div>
+        <div class="col-checkbox"><input type="checkbox"></div>
+        <div class="col-link"><a href="#">レシピ</a></div>
+      </li>
+    </ul>
+  </li>
+
+  <li>
+    <div class="date-header">7月21日（日） 夜</div>
+    <ul class="meal-group" data-date="2025-07-21" data-type="dinner">
+      <li class="meal-item" data-id="static3">
+        <span class="drag-handle">☰</span>
+        <div class="col-name">さばの味噌煮</div>
+        <div class="col-amount">3人分</div>
+        <div class="col-checkbox"><input type="checkbox"></div>
+        <div class="col-link"><a href="#">レシピ</a></div>
+      </li>
+    </ul>
+  </li>
+</ul>
+
+<ul id="meal-list-root-generated"></ul>
+
+<!-- SortableJS CDN -->
+<script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.2/Sortable.min.js"></script>
+
+<script>
+  // デモデータ
+  const mealData = {
+    "id1": {
+      id: "id1",
+      date: "2025-07-14",
+      type: "lunch",
+      menu: "唐揚げ",
+      url: "",
+      memo: "もも肉２枚"
+    },
+    "id2": {
+      id: "id2",
+      date: "2025-07-14",
+      type: "dinner",
+      menu: "餃子",
+      url: "https://example.com/gyoza",
+      memo: "市販の冷凍餃子"
+    },
+    "id3": {
+      id: "id3",
+      date: "2025-07-15",
+      type: "lunch",
+      menu: "焼き魚",
+      url: "",
+      memo: "さば1匹"
+    }
+  };
+
+  function formatDateLabel(dateStr, type) {
+    const date = new Date(dateStr);
+    const weekday = ["日", "月", "火", "水", "木", "金", "土"][date.getDay()];
+    const typeLabel = type === 'lunch' ? '昼' : '夜';
+    return `${date.getMonth() + 1}月${date.getDate()}日（${weekday}） ${typeLabel}`;
+  }
+
+  function generateMealList(dataMap, container) {
+    const grouped = {};
+
+    for (const item of Object.values(dataMap)) {
+      const key = `${item.date}_${item.type}`;
+      if (!grouped[key]) grouped[key] = [];
+      grouped[key].push(item);
+    }
+
+    const root = container;
+    root.innerHTML = "";
+
+    for (const [key, items] of Object.entries(grouped)) {
+      const [date, type] = key.split("_");
+      const header = document.createElement("li");
+      const label = formatDateLabel(date, type);
+      header.innerHTML = `<div class="date-header">${label}</div>`;
+
+      const ul = document.createElement("ul");
+      ul.className = "meal-group";
+      ul.dataset.date = date;
+      ul.dataset.type = type;
+
+      for (const item of items) {
+        const li = document.createElement("li");
+        li.className = "meal-item";
+        li.dataset.id = item.id;
+
+        const linkHTML = item.url ? `<a href="${item.url}" target="_blank">レシピ</a>` : "";
+
+        li.innerHTML = `
+          <span class="drag-handle">☰</span>
+          <div class="col-name">${item.menu}</div>
+          <div class="col-amount">${item.memo}</div>
+          <div class="col-checkbox"><input type="checkbox"></div>
+          <div class="col-link">${linkHTML}</div>
+        `;
+
+        ul.appendChild(li);
+      }
+
+      header.appendChild(ul);
+      root.appendChild(header);
+    }
+  }
+
+  generateMealList(mealData, document.getElementById("meal-list-root-generated"));
+
+  // 並び替え設定を適用する関数
+  // この関数は、すべての .meal-group 要素に対して SortableJS を使ってドラッグ＆ドロップの並び替え機能を有効化します。
+  // 並び替えが発生すると onEnd イベントが発火し、
+  // どの項目がどこからどこに移動したか（idや日付）、新しい並び順などがログに記録されます。
+  function enableSorting() {
+    document.querySelectorAll('.meal-group').forEach(group => {
+      new Sortable(group, {
+        animation: 150,
+        handle: '.drag-handle',
+        group: 'meals',
+        filter: 'a, input',
+        onFilter: evt => {},
+        onEnd: evt => {
+          // 並び替え元と先の <ul class="meal-group"> 要素から data 属性を取得
+          const fromGroup = evt.from;
+          const toGroup = evt.to;
+
+          const fromDate = fromGroup.dataset.date;
+          const toDate = toGroup.dataset.date;
+          const fromType = fromGroup.dataset.type;
+          const toType = toGroup.dataset.type;
+
+          const movedItem = evt.item;
+          const id = movedItem.dataset.id;
+          const menuName = movedItem.querySelector('.col-name')?.textContent.trim();
+
+          console.log(`メニュー「${menuName}」（id=${id}）が移動しました`);
+          console.log(`  - 移動元: ${fromDate} ${fromType}`);
+          console.log(`  - 移動先: ${toDate} ${toType}`);
+          console.log(`  - oldIndex: ${evt.oldIndex}, newIndex: ${evt.newIndex}`);
+
+          const newOrder = Array.from(toGroup.children).map(li => li.dataset.id);
+          console.log(`日付 ${toDate} の新しい順番:`, newOrder);
+        }
+      });
+    });
+  }
+
+  enableSorting();
+
+
+
+  <!-- Day.js 本体と日本語ロケール -->
+<script src="https://cdn.jsdelivr.net/npm/dayjs@1/dayjs.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/dayjs@1/locale/ja.js"></script>
+
+<script>
+  dayjs.locale('ja'); // 日本語ロケールを有効にする
+
+  const now = dayjs('2025-07-16');
+  const mm = now.format('M');
+  const dd = now.format('D');
+  const weekday = now.format('dd');  // 「水」など2文字の略称が出る
+
+  const formatted = `${mm}/${dd}(${weekday})`;
+  console.log(formatted); // 7/16(水)
+</script>
+
+</script>
+
+</body>
+</html>

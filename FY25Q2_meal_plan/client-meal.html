@@ -1,3 +1,81 @@
+<style>
+  ul {
+    list-style: none;
+    padding-left: 0;
+    margin: 0;
+  }
+
+  .date-header {
+    background-color: #ddd;
+    padding: 10px;
+    font-weight: bold;
+    border-top: 1px solid #aaa;
+    font-size: 1rem;
+  }
+
+  .meal-item {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    padding: 10px;
+    background: #f9f9f9;
+    border-bottom: 1px solid #ccc;
+    cursor: grab;
+    font-size: 0.95rem;
+  }
+
+  .drag-handle {
+    margin-right: 10px;
+    cursor: move;
+    flex: 0 0 auto;
+  }
+
+  .col-name,
+  .col-amount,
+  .col-checkbox,
+  .col-link {
+    padding: 4px 6px;
+  }
+
+  .col-name {
+    flex: 1 1 100%;
+    font-weight: bold;
+  }
+
+  .col-amount {
+    flex: 1 1 60%;
+    text-align: left;
+    color: #555;
+  }
+
+  .col-checkbox {
+    flex: 0 0 40px;
+    text-align: center;
+  }
+
+  .col-link {
+    flex: 1 1 100%;
+    text-align: left;
+    font-size: 0.9rem;
+  }
+
+  @media (min-width: 600px) {
+    .meal-item {
+      flex-wrap: nowrap;
+    }
+    .col-name {
+      flex: 1 1 150px;
+    }
+    .col-amount {
+      flex: 0 0 100px;
+      text-align: right;
+    }
+    .col-link {
+      flex: 1 1 auto;
+    }
+  }
+</style>
+
 <script>
 /**
  * 献立表示アプリケーション
@@ -284,6 +362,306 @@ class MealPlanApp {
     return html;
   }
 
+  generateTableHTML2(weekDates, weekData, container) {
+    const root = container;
+    root.innerHTML = "";
+    Object.keys(weekData).forEach(date => {
+      Object.keys(weekData[date]).forEach(type => {
+        const header = document.createElement("li");
+        const label = formatDate(date, "M/D(ddd)") + ` - ${type}`;
+        header.innerHTML = `<div class="date-header">${label}</div>`;
+        if (len(weekData[date][type]) > 0) {
+          const ul = document.createElement("ul");
+          ul.className = "meal-group";
+          ul.dataset.date = date;
+          ul.dataset.type = type;
+          for (const item of weekData[date][type]) {
+            const li = document.createElement("li");
+            li.className = "meal-item";
+            li.dataset.id = item.id;
+            const linkHTML = item.url ? `<a href="${item.url}" target="_blank">${item.menu}</a>` : "";
+            li.innerHTML = `
+              <span class="drag-handle">☰</span>
+              <div class="col-name">${item.menu}</div>
+              <div class="col-amount">${item.memo}</div>
+              <div class="col-checkbox"><input type="checkbox"></div>
+              <div class="col-link">${linkHTML}</div>
+            `;
+            ul.appendChild(li);
+          }
+          header.appendChild(ul);
+        }
+        root.appendChild(header);
+      });
+    });
+
+
+
+    // const mealTypes = this.config?.MEAL_TYPES || ['昼', '夜'];
+    
+
+    // // 各日付の総行数を計算（日付セルのrowspan用）
+    // const dateRowCounts = {};
+    // weekDates.forEach(date => {
+    //   let totalRows = 0;
+    //   mealTypes.forEach(type => {
+    //     const meals = weekData[date][type];
+    //     // データがある場合はデータ行数 + 追加ボタン行、ない場合は追加ボタン行のみ
+    //     totalRows += meals.length > 0 ? meals.length + 1 : 1;
+    //   });
+    //   dateRowCounts[date] = totalRows;
+    // });
+
+    // let globalRowIndex = 0;
+    
+    // データ行を生成
+    weekDates.forEach((date, dateIndex) => {
+      let isFirstDateRow = true;
+      
+      mealTypes.forEach((type, typeIndex) => {
+        const meals = weekData[date][type];
+        // データがある場合はデータ行数 + 追加ボタン行、ない場合は追加ボタン行のみ
+        const typeRowspan = meals.length > 0 ? meals.length + 1 : 1;
+        let isFirstTypeRow = true;
+
+        // データがある場合のみ既存の献立行を表示
+        if (meals.length > 0) {
+          meals.forEach((meal, mealIndex) => {
+            // 行のCSSクラスを決定
+            let rowClasses = [];
+            
+            // 日付グループの境界線
+            if (dateIndex > 0 && isFirstDateRow && isFirstTypeRow && mealIndex === 0) {
+              rowClasses.push('date-group-border');
+            }
+            
+            // 区分グループの境界線（同じ日付内で区分が変わる場合）
+            if (typeIndex > 0 && isFirstTypeRow && mealIndex === 0) {
+              rowClasses.push('type-group-border');
+            }
+            
+            // 交互の行色（日付ごとに切り替え）
+            if (dateIndex % 2 === 0) {
+              rowClasses.push('row-even');
+            } else {
+              rowClasses.push('row-odd');
+            }
+            
+            const rowClassAttr = rowClasses.length > 0 ? ` class="${rowClasses.join(' ')}"` : '';
+            html += `<tr${rowClassAttr}>`;
+            
+            // 日付セル（日付の最初の行のみ）
+            if (isFirstDateRow) {
+              html += `<td class="date-cell" rowspan="${dateRowCounts[date]}">${WeekManager.formatDisplayDate(date)}</td>`;
+              isFirstDateRow = false;
+            }
+            
+            // 区分セル（区分の最初の行のみ）
+            if (isFirstTypeRow) {
+              html += `<td class="type-cell" rowspan="${typeRowspan}">${UIUtils.escapeHtml(type)}</td>`;
+              isFirstTypeRow = false;
+            }
+            
+            // メニューセル
+            html += `<td class="menu-cell">${UIUtils.renderMenuCell(meal.menu)}</td>`;
+            
+            // メモセル
+            html += `<td class="memo-cell">${UIUtils.escapeHtml(meal.memo)}</td>`;
+            
+            // 削除ボタンセル
+            const menuText = typeof meal.menu === 'object' && meal.menu !== null && meal.menu.text ? meal.menu.text : meal.menu;
+            const deleteButtonData = {
+              date: date,
+              type: type,
+              menuText: menuText,
+              memo: meal.memo
+            };
+            html += `<td class="action-cell">
+              <button class="delete-meal-btn" onclick="openDeleteMealModal('${UIUtils.escapeForAttribute(JSON.stringify(deleteButtonData))}')" title="削除">
+                🗑️
+              </button>
+            </td>`;
+            
+            html += '</tr>';
+            globalRowIndex++;
+          });
+        }
+        
+        // 追加ボタン行
+        let addRowClasses = ['add-meal-row'];
+        
+        // データがない場合の境界線処理
+        if (meals.length === 0) {
+          // 日付グループの境界線
+          if (dateIndex > 0 && isFirstDateRow && isFirstTypeRow) {
+            addRowClasses.push('date-group-border');
+          }
+          
+          // 区分グループの境界線（同じ日付内で区分が変わる場合）
+          if (typeIndex > 0 && isFirstTypeRow) {
+            addRowClasses.push('type-group-border');
+          }
+        }
+        
+        const addRowClassAttr = addRowClasses.length > 0 ? ` class="${addRowClasses.join(' ')}"` : '';
+        html += `<tr${addRowClassAttr}>`;
+        
+        // データがない場合の日付・区分セル
+        if (meals.length === 0) {
+          // 日付セル（日付の最初の行のみ）
+          if (isFirstDateRow) {
+            html += `<td class="date-cell" rowspan="${dateRowCounts[date]}">${WeekManager.formatDisplayDate(date)}</td>`;
+            isFirstDateRow = false;
+          }
+          
+          // 区分セル（区分の最初の行のみ）
+          if (isFirstTypeRow) {
+            html += `<td class="type-cell" rowspan="${typeRowspan}">${UIUtils.escapeHtml(type)}</td>`;
+            isFirstTypeRow = false;
+          }
+        }
+        
+        html += `<td class="menu-cell"><button class="add-meal-btn" onclick="openAddMealModal('${date}', '${type}')" title="献立を追加">+</button></td>`;
+        html += `<td class="memo-cell"></td>`;
+        html += `<td class="action-cell"></td>`;
+        html += `</tr>`;
+      });
+    });
+
+    html += '</tbody></table>';
+
+
+    html +=`
+<ul id="meal-list-root">
+<li>
+  <div class="date-header">7月20日（土） 昼</div>
+  <ul class="meal-group" data-date="2025-07-20" data-type="lunch">
+    <li class="meal-item" data-id="static1">
+      <span class="drag-handle">☰</span>
+      <div class="col-name">ハンバーグ</div>
+      <div class="col-amount">2人分</div>
+      <div class="col-checkbox"><input type="checkbox"></div>
+      <div class="col-link"><a href="#">レシピ</a></div>
+    </li>
+    <li class="meal-item" data-id="static2">
+      <span class="drag-handle">☰</span>
+      <div class="col-name">カレーライス</div>
+      <div class="col-amount">4人分</div>
+      <div class="col-checkbox"><input type="checkbox"></div>
+      <div class="col-link"><a href="#">レシピ</a></div>
+    </li>
+  </ul>
+</li>
+
+<li>
+  <div class="date-header">7月21日（日） 夜</div>
+  <ul class="meal-group" data-date="2025-07-21" data-type="dinner">
+    <li class="meal-item" data-id="static3">
+      <span class="drag-handle">☰</span>
+      <div class="col-name">さばの味噌煮</div>
+      <div class="col-amount">3人分</div>
+      <div class="col-checkbox"><input type="checkbox"></div>
+      <div class="col-link"><a href="#">レシピ</a></div>
+    </li>
+  </ul>
+</li>
+</ul>
+`
+
+    return html;
+  }
+
+    /**
+     * テーブルを描画
+     */
+    renderTable() {
+      try {
+        console.log('=== テーブル描画開始 ===');
+        console.log('Current week start:', this.currentWeekStart);
+        
+        const weekDates = WeekManager.getWeekDates(this.currentWeekStart, this.config?.WORK_DAYS);
+        console.log('Week dates:', weekDates);
+        
+        // 週表示を更新
+        const weekDisplayElement = document.getElementById('weekDisplay');
+        if (weekDisplayElement) {
+          weekDisplayElement.textContent = WeekManager.formatWeekDisplay(weekDates);
+        }
+
+        // データを整理
+        const weekData = this.organizeWeekData(weekDates);
+        console.log('Organized data:', weekData);
+
+        // テーブルHTML生成
+        const tableHTML = this.generateTableHTML(weekDates, weekData);
+        
+        // テーブルを更新
+        const tableElement = document.getElementById('mealTable');
+        if (tableElement) {
+          tableElement.innerHTML = tableHTML;
+        }
+
+        // enableSorting();
+
+        console.log('=== テーブル描画完了 ===');
+      } catch (error) {
+        console.error('Table render error:', error);
+        UIUtils.showError('テーブルの描画中にエラーが発生しました: ' + error.message, 'mealTable');
+      }
+    }
+
+    /**
+     * アプリケーションを初期化
+     */
+    initialize() {
+      console.log('=== 献立アプリケーション初期化 ===');
+      this.renderTable();
+    }
+  }
+
+  // グローバル変数として宣言
+  let mealPlanAppInstance = null;
+
+  /**
+   * 献立ページを表示
+   */
+  function showMealPlan() {
+    console.log('Switching to meal plan page');
+    appState.setCurrentPage('meal');
+    
+    // タブの状態を更新
+    document.getElementById('mealTab').classList.add('active');
+    document.getElementById('weekendTab').classList.remove('active');
+    const todoTab = document.getElementById('todoTab');
+    if (todoTab) {
+      todoTab.classList.remove('active');
+    }
+    
+    // ページタイトルを更新
+    document.getElementById('pageTitle').textContent = '献立一覧';
+    
+    // コンテンツエリアの表示を切り替え
+    document.getElementById('mealContent').style.display = 'block';
+    document.getElementById('weekendContent').style.display = 'none';
+    const todoContent = document.getElementById('todoContent');
+    if (todoContent) {
+      todoContent.style.display = 'none';
+    }
+    
+    // 買い出しリストボタンを表示
+    const shoppingSection = document.getElementById('shoppingListSection');
+    if (shoppingSection) {
+      shoppingSection.style.display = 'block';
+    }
+    
+    // 献立テーブルを再描画
+    if (mealPlanAppInstance) {
+      // アプリケーション状態と同期
+      mealPlanAppInstance.currentWeekStart = appState.getCurrentWeekStart();
+      mealPlanAppInstance.renderTable();
+    }
+  }
+
   /**
    * テーブルを描画
    */
@@ -493,4 +871,44 @@ function handleDeleteButtonPushed(id) {
 
 
 console.log('Meal plan module loaded successfully');
+
+function enableSorting() {
+  document.querySelectorAll('.meal-group').forEach(group => {
+    new Sortable(group, {
+      animation: 150,
+      handle: '.drag-handle',
+      group: 'meals',
+      filter: 'a, input',
+      onFilter: evt => {},
+      onEnd: evt => {
+        // 並び替え元と先の <ul class="meal-group"> 要素から data 属性を取得
+        const fromGroup = evt.from;
+        const toGroup = evt.to;
+
+        const fromDate = fromGroup.dataset.date;
+        const toDate = toGroup.dataset.date;
+        const fromType = fromGroup.dataset.type;
+        const toType = toGroup.dataset.type;
+
+        const movedItem = evt.item;
+        const id = movedItem.dataset.id;
+        const menuName = movedItem.querySelector('.col-name')?.textContent.trim();
+
+        console.log(`メニュー「${menuName}」（id=${id}）が移動しました`);
+        console.log(`  - 移動元: ${fromDate} ${fromType}`);
+        console.log(`  - 移動先: ${toDate} ${toType}`);
+        console.log(`  - oldIndex: ${evt.oldIndex}, newIndex: ${evt.newIndex}`);
+
+        const newOrder = Array.from(toGroup.children).map(li => li.dataset.id);
+        console.log(`日付 ${toDate} の新しい順番:`, newOrder);
+      }
+    });
+  });
+}
+
+// document.addEventListener('DOMContentLoaded', () => {
+//   // HTMLが完全に読み込まれてから初期化処理を実行する
+//   // generateMealList(mealData, document.getElementById("meal-list-root-generated"));
+//   enableSorting();
+// });
 </script>

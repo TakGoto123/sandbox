@@ -5,6 +5,9 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>献立一覧</title>
   <?!= include('client-styles'); ?>
+  <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.2/Sortable.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/dayjs@1/dayjs.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/dayjs@1/locale/ja.js"></script>
 </head>
 <body>
   <!-- 共通ユーティリティ -->
@@ -36,6 +39,9 @@ function initializeMainApp() {
   const todo_items = JSON.parse('<?= JSON.stringify(todo_items) ?>');
   const config = JSON.parse('<?= JSON.stringify(config) ?>');
   console.log('Parsed data:', meal_plan, shopping_items, todo_items, config);
+
+  // dayjsを日本語にロケール
+  dayjs.locale('ja');
 
   // AppControllerを通じて初期化
   console.log('Server data received, initializing AppController...');
