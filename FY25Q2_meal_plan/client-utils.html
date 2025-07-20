@@ -208,18 +208,11 @@
      * @param {string|Object} value - メニューの値
      * @returns {string} レンダリングされたHTML
      */
-    static renderMenuCell(value) {
-      // {text: url: }形式のオブジェクトの場合
-      if (typeof value === 'object' && value !== null && value.text && value.url) {
-        return `<a href="${UIUtils.escapeHtml(value.url)}" target="_blank">${UIUtils.escapeHtml(value.text)}</a>`;
-      }
-      
-      // 文字列の場合はそのまま表示
-      if (typeof value === 'string') {
-        return UIUtils.escapeHtml(value);
-      }
-      
-      return UIUtils.escapeHtml(String(value));
+    static renderMenuCell(menu, url) {
+      if ((typeof url) === 'string' && url !== '') {
+        return `<a href="${UIUtils.escapeHtml(url)}" target="_blank">${UIUtils.escapeHtml(menu)}</a>`;
+      } 
+      return UIUtils.escapeHtml(String(menu));
     }
   }
 

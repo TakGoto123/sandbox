@@ -86,8 +86,8 @@ class MealPlanApp {
     this.headers = headers;
     this.raw_meal_plan = data;
     this.structured_meal_plan = {};
-    this.raw_meal_plan.forEach(([date, type, menu, memo, id]) => {
-      this.structured_meal_plan[id] = { id, date, type, menu, memo };
+    this.raw_meal_plan.forEach(([date, type, menu, url, memo, id]) => {
+      this.structured_meal_plan[id] = { id, date, type, menu, url, memo };
     });
     this.local_meal_plan = {};
     this.deleted_meal = {};
@@ -97,7 +97,7 @@ class MealPlanApp {
     if (!this.config) {
       this.config = {
         SHEET_NAME: 'menu-schedule',
-        MEAL_TYPES: ['弁当', '夜'],
+        MEAL_TYPES: ['昼', '夜'],
         DATE_FORMAT: 'yyyy-MM-dd',
         TIMEZONE: 'Asia/Tokyo',
         WEEK_START_DAY: 6,
@@ -142,7 +142,7 @@ class MealPlanApp {
    * @returns {Object} 整理されたデータ
    */
   organizeWeekData(weekDates) {
-    const mealTypes = this.config?.MEAL_TYPES || ['弁当', '夜'];
+    const mealTypes = this.config?.MEAL_TYPES || ['昼', '夜'];
     const weekData = {};
     
     // 初期化
@@ -156,54 +156,13 @@ class MealPlanApp {
     // データを分類
     const merged_data = {...this.structured_meal_plan, ...this.local_meal_plan};
     if (Object.keys(merged_data).length > 0) {
-      for (const {id, date, type, menu, memo} of Object.values(merged_data)) {
+      for (const {id, date, type, menu, url, memo} of Object.values(merged_data)) {
         let dateRaw = date;
       
         // 日付の正規化処理を改善
-        let dateStr = '';
-        if (dateRaw instanceof Date) {
-          dateStr = WeekManager.formatDate(dateRaw);
-        } else if (typeof dateRaw === 'string') {
-          // 既にyyyy-MM-dd形式の場合はそのまま使用
-          if (/^\d{4}-\d{2}-\d{2}$/.test(dateRaw.trim())) {
-            dateStr = dateRaw.trim();
-          } else {
-            // その他の文字列形式の場合はDateオブジェクトに変換
-            const parsedDate = new Date(dateRaw);
-            if (!isNaN(parsedDate.getTime())) {
-              dateStr = WeekManager.formatDate(parsedDate);
-            } else {
-              console.warn('Invalid date format:', dateRaw);
-              return; // 無効な日付はスキップ
-            }
-          }
-        } else {
-          console.warn('Unexpected date type:', typeof dateRaw, dateRaw);
-          return; // 予期しない型はスキップ
-        }
-        
-        // menuが{text: url: }形式のオブジェクトまたは文字列の場合の処理
-        let parsedMenu = menu;
-        
-        // 既にオブジェクト形式の場合はそのまま使用
-        if (typeof menu === 'object' && menu !== null && menu.text && menu.url) {
-          parsedMenu = menu;
-        }
-        // 文字列でJSON形式の場合はパース
-        else if (typeof menu === 'string' && menu.includes('{') && menu.includes('}')) {
-          try {
-            const parsed = JSON.parse(menu);
-            if (parsed.text && parsed.url) {
-              parsedMenu = { text: parsed.text, url: parsed.url };
-            }
-          } catch (e) {
-            // JSONパースに失敗した場合は元の値を使用
-            parsedMenu = menu;
-          }
-        }
-        
+        let dateStr = formatDate(date, "YYYY-MM-DD");
         if (weekData[dateStr] && mealTypes.includes(type) && !(this.deleted_meal[id])) {
-          weekData[dateStr][type].push({ menu: parsedMenu || '', memo: memo || '', id: id });
+          weekData[dateStr][type].push({ id, menu, url, memo });
         }
       }
     }
@@ -218,7 +177,7 @@ class MealPlanApp {
    * @returns {string} テーブルのHTML
    */
   generateTableHTML(weekDates, weekData) {
-    const mealTypes = this.config?.MEAL_TYPES || ['弁当', '夜'];
+    const mealTypes = this.config?.MEAL_TYPES || ['昼', '夜'];
     let html = '<table><thead><tr>';
     
     // ヘッダー行
@@ -294,13 +253,12 @@ class MealPlanApp {
             }
             
             // メニューセル
-            html += `<td class="menu-cell">${UIUtils.renderMenuCell(meal.menu)}</td>`;
+            html += `<td class="menu-cell">${UIUtils.renderMenuCell(meal.menu, meal.url)}</td>`;
             
             // メモセル
             html += `<td class="memo-cell">${UIUtils.escapeHtml(meal.memo)}</td>`;
             
             // 削除ボタンセル
-            const menuText = typeof meal.menu === 'object' && meal.menu !== null && meal.menu.text ? meal.menu.text : meal.menu;
             let menu_id = meal.id;
             html += `<td class="action-cell">
               <button class="delete-meal-btn" onclick="handleDeleteButtonPushed('${menu_id}')" title="削除">

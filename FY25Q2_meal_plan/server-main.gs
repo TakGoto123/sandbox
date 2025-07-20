@@ -178,44 +178,14 @@ function normalizeDataRow(row) {
  * @returns {Array} 正規化されたデータ行
  */
 function normalizeDataRowWithHyperlinks(row, dataRange, rowIndex) {
-  const [date, type, menu, memo, id] = row;
-  
-  // メニュー列（3列目）のハイパーリンク情報を取得
-  let processedMenu = String(menu || '').trim();
-  
-  try {
-    // セルの範囲を取得（行は1ベースなので+1、列は3列目）
-    const menuCell = dataRange.getCell(rowIndex + 1, 3);
-    
-    // セルにハイパーリンクが設定されているかチェック
-    const formula = menuCell.getFormula();
-    if (formula && formula.includes('HYPERLINK')) {
-      // HYPERLINK関数からURLとテキストを抽出
-      const hyperlinkMatch = formula.match(/=HYPERLINK\("([^"]+)",\s*"([^"]+)"\)/);
-      if (hyperlinkMatch) {
-        const url = hyperlinkMatch[1];
-        const text = hyperlinkMatch[2];
-        
-        // オブジェクト形式で返す
-        processedMenu = {
-          text: text,
-          url: url
-        };
-        
-        Logger.log(`Found hyperlink: ${text} -> ${url}`);
-      }
-    }
-  } catch (error) {
-    Logger.log(`Error processing hyperlink for row ${rowIndex}: ${error.message}`);
-    // エラーが発生した場合は元のテキストをそのまま使用
-  }
-  
+  const [date, type, menu, url, memo, id] = row;
   return [
     formatDate(date),
     String(type || '').trim(),
-    processedMenu,
+    String(menu || '').trim(),
+    String(url || '').trim(),
     String(memo || '').trim(),
-    id
+    String(id || '').trim()
   ];
 }
 
