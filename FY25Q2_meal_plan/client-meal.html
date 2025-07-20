@@ -115,10 +115,6 @@ class MealPlanApp {
     this.logDebugInfo();
   }
 
-  setData(data) {
-    this.raw
-  }
-
   /**
    * デバッグ情報をコンソールに出力
    */
@@ -395,11 +391,7 @@ class MealPlanApp {
       });
     });
 
-
-
     // const mealTypes = this.config?.MEAL_TYPES || ['昼', '夜'];
-    
-
     // // 各日付の総行数を計算（日付セルのrowspan用）
     // const dateRowCounts = {};
     // weekDates.forEach(date => {
@@ -527,139 +519,7 @@ class MealPlanApp {
         html += `</tr>`;
       });
     });
-
-    html += '</tbody></table>';
-
-
-    html +=`
-<ul id="meal-list-root">
-<li>
-  <div class="date-header">7月20日（土） 昼</div>
-  <ul class="meal-group" data-date="2025-07-20" data-type="lunch">
-    <li class="meal-item" data-id="static1">
-      <span class="drag-handle">☰</span>
-      <div class="col-name">ハンバーグ</div>
-      <div class="col-amount">2人分</div>
-      <div class="col-checkbox"><input type="checkbox"></div>
-      <div class="col-link"><a href="#">レシピ</a></div>
-    </li>
-    <li class="meal-item" data-id="static2">
-      <span class="drag-handle">☰</span>
-      <div class="col-name">カレーライス</div>
-      <div class="col-amount">4人分</div>
-      <div class="col-checkbox"><input type="checkbox"></div>
-      <div class="col-link"><a href="#">レシピ</a></div>
-    </li>
-  </ul>
-</li>
-
-<li>
-  <div class="date-header">7月21日（日） 夜</div>
-  <ul class="meal-group" data-date="2025-07-21" data-type="dinner">
-    <li class="meal-item" data-id="static3">
-      <span class="drag-handle">☰</span>
-      <div class="col-name">さばの味噌煮</div>
-      <div class="col-amount">3人分</div>
-      <div class="col-checkbox"><input type="checkbox"></div>
-      <div class="col-link"><a href="#">レシピ</a></div>
-    </li>
-  </ul>
-</li>
-</ul>
-`
-
     return html;
-  }
-
-    /**
-     * テーブルを描画
-     */
-    renderTable() {
-      try {
-        console.log('=== テーブル描画開始 ===');
-        console.log('Current week start:', this.currentWeekStart);
-        
-        const weekDates = WeekManager.getWeekDates(this.currentWeekStart, this.config?.WORK_DAYS);
-        console.log('Week dates:', weekDates);
-        
-        // 週表示を更新
-        const weekDisplayElement = document.getElementById('weekDisplay');
-        if (weekDisplayElement) {
-          weekDisplayElement.textContent = WeekManager.formatWeekDisplay(weekDates);
-        }
-
-        // データを整理
-        const weekData = this.organizeWeekData(weekDates);
-        console.log('Organized data:', weekData);
-
-        // テーブルHTML生成
-        const tableHTML = this.generateTableHTML(weekDates, weekData);
-        
-        // テーブルを更新
-        const tableElement = document.getElementById('mealTable');
-        if (tableElement) {
-          tableElement.innerHTML = tableHTML;
-        }
-
-        // enableSorting();
-
-        console.log('=== テーブル描画完了 ===');
-      } catch (error) {
-        console.error('Table render error:', error);
-        UIUtils.showError('テーブルの描画中にエラーが発生しました: ' + error.message, 'mealTable');
-      }
-    }
-
-    /**
-     * アプリケーションを初期化
-     */
-    initialize() {
-      console.log('=== 献立アプリケーション初期化 ===');
-      this.renderTable();
-    }
-  }
-
-  // グローバル変数として宣言
-  let mealPlanAppInstance = null;
-
-  /**
-   * 献立ページを表示
-   */
-  function showMealPlan() {
-    console.log('Switching to meal plan page');
-    appState.setCurrentPage('meal');
-    
-    // タブの状態を更新
-    document.getElementById('mealTab').classList.add('active');
-    document.getElementById('weekendTab').classList.remove('active');
-    const todoTab = document.getElementById('todoTab');
-    if (todoTab) {
-      todoTab.classList.remove('active');
-    }
-    
-    // ページタイトルを更新
-    document.getElementById('pageTitle').textContent = '献立一覧';
-    
-    // コンテンツエリアの表示を切り替え
-    document.getElementById('mealContent').style.display = 'block';
-    document.getElementById('weekendContent').style.display = 'none';
-    const todoContent = document.getElementById('todoContent');
-    if (todoContent) {
-      todoContent.style.display = 'none';
-    }
-    
-    // 買い出しリストボタンを表示
-    const shoppingSection = document.getElementById('shoppingListSection');
-    if (shoppingSection) {
-      shoppingSection.style.display = 'block';
-    }
-    
-    // 献立テーブルを再描画
-    if (mealPlanAppInstance) {
-      // アプリケーション状態と同期
-      mealPlanAppInstance.currentWeekStart = appState.getCurrentWeekStart();
-      mealPlanAppInstance.renderTable();
-    }
   }
 
   /**
@@ -869,9 +729,6 @@ function handleDeleteButtonPushed(id) {
   }
 }
 
-
-console.log('Meal plan module loaded successfully');
-
 function enableSorting() {
   document.querySelectorAll('.meal-group').forEach(group => {
     new Sortable(group, {
@@ -911,4 +768,6 @@ function enableSorting() {
 //   // generateMealList(mealData, document.getElementById("meal-list-root-generated"));
 //   enableSorting();
 // });
+
+console.log('Meal plan module loaded successfully');
 </script>
