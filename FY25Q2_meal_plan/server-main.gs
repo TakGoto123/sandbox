@@ -437,31 +437,19 @@ function formatWeekDisplay(weekStart) {
  * @param {string} memo - メモ
  * @returns {Object} 結果オブジェクト
  */
-function addMealData(date, type, menu, memo, id=null) {
+function addMealData(date, type, menu, url, memo, id=null) {
   try {
     const sheet = getSheet(CONFIG.MEAL_PLAN_SHEET_NAME);
-    
-    // メニューオブジェクトからテキストを取得
-    const menuText = menu && menu.text ? menu.text : '';
-    const menuUrl = menu && menu.url ? menu.url : null;
     
     // 新しい行を追加
     if (!id) {
       id = created_timestamp = new Date().toISOString();
     }
-    const newRow = [date, type, menuText, memo || '', id];
+    const newRow = [date, type, menu, url, memo, id];
     const lastRow = sheet.getLastRow() + 1;
     
     // データを追加
-    sheet.getRange(lastRow, 1, 1, 5).setValues([newRow]);
-    
-    // URLが有効な場合、ハイパーリンクとして設定
-    if (menuUrl && isValidUrl(menuUrl)) {
-      const cell = sheet.getRange(lastRow, 3); // 3列目（メニュー名）
-      cell.setFormula(`=HYPERLINK("${menuUrl}", "${menuText}")`);
-      Logger.log('Set hyperlink:', { url: menuUrl, text: menuText });
-    }
-    
+    sheet.getRange(lastRow, 1, 1, 6).setValues([newRow]);
     Logger.log('Added new meal:', newRow);
     
     return {
@@ -735,7 +723,7 @@ function deleteMealDataByIdForApp(del_id) {
     let targetRowIndex = -1;
     let date, type, menuText, memo;
     for (let i = 1; i < values.length; i++) {
-      const [rowDate, rowType, rowMenu, rowMemo, id] = values[i];
+      const [rowDate, rowType, rowMenu, rowUrl, rowMemo, id] = values[i];
       
       if (id === del_id) {
         targetRowIndex = i + 1; // スプレッドシートは1ベース

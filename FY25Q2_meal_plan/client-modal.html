@@ -464,39 +464,15 @@ class ModalHandler {
     // フォームデータを取得
     const date = document.getElementById('mealDate').dataset.actualDate;
     const type = document.getElementById('mealType').dataset.actualType;
-    const menuInput = document.getElementById('menuName').value.trim();
+    const menu = document.getElementById('menuName').value.trim();
+    const url = document.getElementById(('menuUrl')).value.trim();
     const memo = document.getElementById('menuMemo').value.trim();
     
-    if (!menuInput) {
+    if (!menu) {
       this.showMessage('メニュー名を入力してください', 'error');
       return;
     }
-    
-    // メニューオブジェクトを構築
-    let menuObj = {
-      text: menuInput,
-      url: null
-    };
-    
-    // URLの場合、プレビューからタイトルを取得
-    if (this.isValidUrl(menuInput)) {
-      const previewContent = document.getElementById('menuPreviewContent');
-      if (previewContent && previewContent.querySelector('a')) {
-        // プレビューからタイトルを取得
-        const titleFromPreview = previewContent.querySelector('a').textContent;
-        menuObj = {
-          text: titleFromPreview,
-          url: menuInput
-        };
-      } else {
-        // プレビューがない場合はURLをそのまま使用
-        menuObj = {
-          text: menuInput,
-          url: null
-        };
-      }
-    }
-    
+
     // ボタンを無効化してローディング表示
     if (submitBtn && submitBtnText) {
       submitBtn.disabled = true;
@@ -506,17 +482,18 @@ class ModalHandler {
     try {
       // Google Apps Scriptの関数を呼び出し
       const id = new Date().toISOString();
-      const result = await callGasFunction('addMealData', date, type, menuObj, memo, id);
+      const result = await callGasFunction('addMealData', date, type, menu, url, memo, id);
       
       if (result.success) {
         this.showMessage('献立を追加しました', 'success');
         
         // データを更新してテーブルを再描画
         setTimeout(() => {
-          const menuData = menuObj.url ? menuObj : menuObj.text;
           if (mealPlanAppInstance && mealPlanAppInstance.local_meal_plan) {
-            mealPlanAppInstance.local_meal_plan[id] = {id, date, type, menu: menuData, memo};
+            mealPlanAppInstance.local_meal_plan[id] = {id, date, type, menu, url, memo};
             console.warn("local_meal_plan: ", mealPlanAppInstance.local_meal_plan[id]);
+          } else {
+            throw new Error("mealPlanAppInstance.local_meal_plan is not found");
           }
           
           // テーブルを再描画

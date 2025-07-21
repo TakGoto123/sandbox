@@ -680,8 +680,15 @@ function hideProcessingState() {
 
 function handleDeleteButtonPushed(id) {
   if (modalHandlerInstance) {
-    console.warn("modalHandlerInstance.structured_meal_plan", mealPlanAppInstance.structured_meal_plan);
-    modalHandlerInstance.openDeleteModal(mealPlanAppInstance.structured_meal_plan[id]);
+    let deleteTarget = {};
+    if (id in mealPlanAppInstance.local_meal_plan) {
+      deleteTarget = mealPlanAppInstance.local_meal_plan[id];
+    } else if (id in mealPlanAppInstance.structured_meal_plan) {
+      deleteTarget = mealPlanAppInstance.structured_meal_plan[id]
+    } else {
+      throw new Error("Cannot find delete target");
+    }
+    modalHandlerInstance.openDeleteModal(deleteTarget);
   } else {
     console.error('ModalHandler instance not found');
   }
