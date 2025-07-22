@@ -51,7 +51,7 @@
     border: none;
     padding: 12px 24px;
     cursor: pointer;
-    font-size: 16px;
+    font-size: 24px;
     font-weight: 500;
     transition: all 0.3s ease;
     border-radius: 0;
@@ -109,11 +109,6 @@
 
   .week-nav-btn:hover {
     background: #2980b9;
-    transform: scale(1.1);
-  }
-
-  .week-nav-btn:active {
-    transform: scale(0.95);
   }
 
   .week-display {
@@ -251,11 +246,6 @@
 
   .add-meal-btn:hover {
     background: #229954;
-    transform: scale(1.1);
-  }
-
-  .add-meal-btn:active {
-    transform: scale(0.95);
   }
 
   .add-meal-row {
@@ -281,8 +271,29 @@
     padding: 30px;
     border-radius: 8px;
     width: 90%;
-    max-width: 500px;
+    max-width: 1000px;
     box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+  }
+
+  .modal-content input,
+  .modal-content textarea {
+    font-size: 18px;
+  }
+
+  input.meal-form-input {
+    font-size: 18px !important;
+  }
+
+  textarea.meal-form-input {
+    font-size: 18px !important;
+    font-family: inherit;
+    line-height: 1.4;
+    height: auto;
+    width: 100%;
+    -webkit-text-size-adjust: none;
+    text-size-adjust: none;
+    box-sizing: border-box;
+    resize: vertical;
   }
 
   .modal-header {
@@ -329,24 +340,13 @@
     color: #2c3e50;
   }
 
-  .form-input {
+  .meal-form-input {
     width: 100%;
     padding: 10px;
     border: 1px solid #bdc3c7;
     border-radius: 4px;
-    font-size: 14px;
+    font-size: 18px;
     transition: border-color 0.3s ease;
-  }
-
-  .form-input:focus {
-    outline: none;
-    border-color: #3498db;
-    box-shadow: 0 0 0 2px rgba(52, 152, 219, 0.2);
-  }
-
-  .form-textarea {
-    resize: vertical;
-    min-height: 80px;
   }
 
   .url-input-group {
@@ -387,7 +387,7 @@
     border: none;
     border-radius: 4px;
     cursor: pointer;
-    font-size: 14px;
+    font-size: 1.5rem;
     transition: all 0.3s ease;
   }
 

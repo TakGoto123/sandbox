@@ -80,7 +80,21 @@
     }
   }
 
-  .delete-meal-btn {
+  .edit-meal-btn {
+    font-size: 1.7rem;
+    padding: 4px 8px;
+    background: none;
+    border: none;
+    cursor: pointer;
+    color: #444;
+    line-height: 1;
+  }
+
+  .edit-meal-btn:hover {
+    color: #007bff;
+  }
+
+.delete-meal-btn {
     font-size: 1.7rem;     /* ← アイコンのサイズ */
     padding: 4px 8px;      /* ← タップしやすい大きさに */
     background: none;      /* 背景なし（または必要に応じて設定） */
@@ -208,10 +222,10 @@ class MealPlanApp {
             <span class="drag-handle">☰</span>
             <div class="col-name">${menuHTML}</div>
             <div class="col-amount">${item.memo}</div>
+
             <div class="action-cell">
-              <button class="delete-meal-btn" onclick="handleDeleteButtonPushed('${item.id}')" title="削除">
-                🗑️
-              </button>
+              <button class="edit-meal-btn" onclick="openEditMealModal('${item.id}')" title="編集">✏️</button>
+              <button class="delete-meal-btn" onclick="handleDeleteButtonPushed('${item.id}')" title="削除">🗑️</button>
             </div>
           `;
           ul.appendChild(li);

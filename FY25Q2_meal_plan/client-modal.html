@@ -11,23 +11,23 @@
     <form id="addMealForm">
       <div class="form-group">
         <label class="form-label">日付</label>
-        <input type="text" id="mealDate" class="form-input" readonly>
+        <input type="text" id="mealDate" class="meal-form-input" readonly>
       </div>
       
       <div class="form-group">
         <label class="form-label">区分</label>
-        <input type="text" id="mealType" class="form-input" readonly>
+        <input type="text" id="mealType" class="meal-form-input" readonly>
       </div>
       
       <div class="form-group">
         <label class="form-label">メニュー名 *</label>
-        <input type="text" id="menuName" class="form-input" placeholder="料理名を入力してください" required>
+        <input type="text" id="menuName" class="meal-form-input" placeholder="料理名を入力してください" required>
         <ul id="menuSuggestions" class="suggestions-list"></ul>
       </div>
 
       <div class="form-group">
         <label class="form-label">URL</label>
-        <input type="url" id="menuUrl" class="form-input" placeholder="レシピのURLを入力してください">
+        <input type="url" id="menuUrl" class="meal-form-input" placeholder="レシピのURLを入力してください">
         <small id="menuPreviewContent" style="color: #7f8c8d; font-size: 0.9em;">
           URLを入力するとタイトルが自動でメニュー名に反映されます
         </small>
@@ -35,10 +35,11 @@
 
       <div class="form-group">
         <label class="form-label">メモ</label>
-        <textarea id="menuMemo" class="form-input form-textarea" placeholder="材料の情報を入力してください"></textarea>
+        <textarea id="menuMemo" class="meal-form-input" placeholder="材料の情報を入力してください2"></textarea>
       </div>
       
       <div class="modal-actions">
+        <button type="button" class="btn btn-danger" id="editDeleteBtn" style="display:none;" onclick="handleDeleteButtonPushedByEdit()">削除</button>
         <button type="button" class="btn btn-secondary" onclick="closeAddMealModal()">キャンセル</button>
         <button type="submit" class="btn btn-primary" id="submitBtn">
           <span id="submitBtnText">追加</span>
@@ -295,17 +296,12 @@ class ModalHandler {
       });
     };
 
-    // === 1. URLペーストイベント ===
-    urlInput.addEventListener('paste', (e) => {
-      console.log("Debug: paste is called");
-      setTimeout(() => {
-        const value = e.target.value.trim();
-        if (this.isValidUrl(value)) {
-          this.autoFetchTitleFromUrl(value);
-        }
-      }, 10);
+    urlInput.addEventListener('input', (e) => {
+      const value = e.target.value.trim();
+      if (this.isValidUrl(value)) {
+        this.handleUrlInput(value, true); // 即時処理
+      }
     });
-
     // --- 入力時（通常/空白） ---
     menuNameInput.addEventListener('input', (e) => {
       const value = e.target.value;
@@ -454,8 +450,6 @@ class ModalHandler {
    * @param {Event} e - フォームイベント
    */
   async handleFormSubmit(e) {
-    console.log("fugafuga01")
-
     e.preventDefault();
     
     const submitBtn = document.getElementById('submitBtn');
@@ -481,31 +475,56 @@ class ModalHandler {
     
     try {
       // Google Apps Scriptの関数を呼び出し
-      const id = new Date().toISOString();
-      const result = await callGasFunction('addMealData', date, type, menu, url, memo, id);
-      
-      if (result.success) {
-        this.showMessage('献立を追加しました', 'success');
-        
-        // データを更新してテーブルを再描画
-        setTimeout(() => {
-          if (mealPlanAppInstance && mealPlanAppInstance.local_meal_plan) {
-            mealPlanAppInstance.local_meal_plan[id] = {id, date, type, menu, url, memo};
-            console.warn("local_meal_plan: ", mealPlanAppInstance.local_meal_plan[id]);
-          } else {
-            throw new Error("mealPlanAppInstance.local_meal_plan is not found");
-          }
-          
-          // テーブルを再描画
-          if (mealPlanAppInstance) {
-            mealPlanAppInstance.renderTable();
-          }
-          
-          // モーダルを閉じる
+      let id = document.getElementById('addMealForm').dataset.editId;
+      if (id) {
+        const data = mealPlanAppInstance.local_meal_plan[id] || mealPlanAppInstance.structured_meal_plan[id];
+        if (!id) {
+          throw new Error("Error: invalid id: " + id);
+        }
+        data.menu = menu;
+        data.url = url;
+        data.memo = memo;
+        google.script.run
+          .withSuccessHandler(result => {
+            if (result.success == false) {
+              console.error('更新処理に失敗しました：' + result.message);
+              UIUtils.showError('更新処理に失敗しました：' + result.message);
+            }
+          })
+          .withFailureHandler(error => {
+            console.error('更新通信に失敗しました：' + error.message);
+            UIUtils.showError('更新通信に失敗しました：' + error.message);
+          })
+          .updateMealMenuForApp(data);
+          mealPlanAppInstance.local_meal_plan[id] = data;
+          mealPlanAppInstance.renderTable();
           this.closeModal();
-        }, 1000);
       } else {
-        this.showMessage(result.message || 'データの追加に失敗しました', 'error');
+        const id = new Date().toISOString();
+        const result = await callGasFunction('addMealData', date, type, menu, url, memo, id);
+        if (result.success) {
+          this.showMessage('献立を追加しました', 'success');
+          
+          // データを更新してテーブルを再描画
+          setTimeout(() => {
+            if (mealPlanAppInstance && mealPlanAppInstance.local_meal_plan) {
+              mealPlanAppInstance.local_meal_plan[id] = {id, date, type, menu, url, memo};
+              console.warn("local_meal_plan: ", mealPlanAppInstance.local_meal_plan[id]);
+            } else {
+              throw new Error("mealPlanAppInstance.local_meal_plan is not found");
+            }
+            
+            // テーブルを再描画
+            if (mealPlanAppInstance) {
+              mealPlanAppInstance.renderTable();
+            }
+            
+            // モーダルを閉じる
+            this.closeModal();
+          }, 1000);
+        } else {
+          this.showMessage(result.message || 'データの追加に失敗しました', 'error');
+        }
       }
     } catch (error) {
       console.error('Add meal error:', error);
@@ -712,4 +731,37 @@ function confirmDeleteMeal() {
     console.error('ModalHandler instance not found');
   }
 }
+
+function openEditMealModal(id) {
+  if (!modalHandlerInstance || !mealPlanAppInstance) return;
+
+  const data = mealPlanAppInstance.local_meal_plan[id] || mealPlanAppInstance.structured_meal_plan[id];
+  if (!data) return;
+
+  modalHandlerInstance.openModal(data.date, data.type);
+
+  document.getElementById('menuName').value = data.menu;
+  document.getElementById('menuUrl').value = data.url;
+  document.getElementById('menuMemo').value = data.memo;
+
+  // 編集対象IDを一時保存（必要なら）
+  document.getElementById('addMealForm').dataset.editId = id;
+
+  // ボタン表示切り替え（例：submitボタンテキストを「更新」に）
+  document.getElementById('submitBtnText').textContent = '更新';
+
+  // 編集中は削除ボタンを表示するなども可能（カスタマイズに応じて）
+  document.getElementById('editDeleteBtn').style.display = 'inline-block';
+}
+
+function handleDeleteButtonPushedByEdit() {
+  const id = document.getElementById('addMealForm').dataset.editId;
+  if (id) {
+    handleDeleteButtonPushed(id);
+    closeAddMealModal(); // 編集モーダルを閉じる
+  } else {
+    throw new Error("Error: cannot find id");
+  }
+}
+
 </script>
