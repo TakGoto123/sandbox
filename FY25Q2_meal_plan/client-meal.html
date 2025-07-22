@@ -1,16 +1,21 @@
 <style>
-  ul {
+  ul, li, .meal-group, .meal-group li {
     list-style: none;
     padding-left: 0;
     margin: 0;
   }
 
+  li::marker {
+    content: none;
+  }
+
   .date-header {
+    display: flex;
     background-color: #ddd;
     padding: 10px;
     font-weight: bold;
     border-top: 1px solid #aaa;
-    font-size: 1rem;
+    font-size: 1.5rem;
   }
 
   .meal-item {
@@ -28,18 +33,24 @@
     margin-right: 10px;
     cursor: move;
     flex: 0 0 auto;
+    align-items: center;
+    justify-content: center;
+    font-size: 2.5rem;
+    width: 60px;
+    height: 60px;
+    line-height: 1.5;
+    user-select: none;
+    color: #666;
   }
 
   .col-name,
   .col-amount,
   .col-checkbox,
-  .col-link {
-    padding: 4px 6px;
-  }
 
   .col-name {
     flex: 1 1 100%;
     font-weight: bold;
+    font-size: 1.3rem;
   }
 
   .col-amount {
@@ -53,27 +64,32 @@
     text-align: center;
   }
 
-  .col-link {
-    flex: 1 1 100%;
-    text-align: left;
-    font-size: 0.9rem;
-  }
-
   @media (min-width: 600px) {
     .meal-item {
       flex-wrap: nowrap;
     }
     .col-name {
-      flex: 1 1 150px;
+      flex: 2 1 150px;
     }
     .col-amount {
-      flex: 0 0 100px;
+      flex: 1 1 100px;
+      font-size: 0.8rem;
+      font-weight: normal;
       text-align: right;
-    }
-    .col-link {
-      flex: 1 1 auto;
+      margin-right: 5px;
     }
   }
+
+  .delete-meal-btn {
+    font-size: 1.7rem;     /* ← アイコンのサイズ */
+    padding: 4px 8px;      /* ← タップしやすい大きさに */
+    background: none;      /* 背景なし（または必要に応じて設定） */
+    border: none;
+    cursor: pointer;
+    color: #444;           /* 色調整（任意） */
+    line-height: 1;
+  }
+
 </style>
 
 <script>
@@ -170,316 +186,94 @@ class MealPlanApp {
     return weekData;
   }
 
-  /**
-   * テーブルのHTMLを生成
-   * @param {Array<string>} weekDates - 週の日付配列
-   * @param {Object} weekData - 整理されたデータ
-   * @returns {string} テーブルのHTML
-   */
-  generateTableHTML(weekDates, weekData) {
-    const mealTypes = this.config?.MEAL_TYPES || ['昼', '夜'];
-    let html = '<table><thead><tr>';
-    
-    // ヘッダー行
-    if (this.headers && Array.isArray(this.config.MEAL_PLAN_HEADERS)) {
-      this.config.MEAL_PLAN_HEADERS.forEach(header => {
-        html += `<th>${UIUtils.escapeHtml(header)}</th>`;
-      });
-    }
-    // 削除列のヘッダーを追加
-    html += '<th>操作</th>';
-    html += '</tr></thead><tbody>';
-
-    // 各日付の総行数を計算（日付セルのrowspan用）
-    const dateRowCounts = {};
-    weekDates.forEach(date => {
-      let totalRows = 0;
-      mealTypes.forEach(type => {
-        const meals = weekData[date][type];
-        // データがある場合はデータ行数 + 追加ボタン行、ない場合は追加ボタン行のみ
-        totalRows += meals.length > 0 ? meals.length + 1 : 1;
-      });
-      dateRowCounts[date] = totalRows;
-    });
-
-    let globalRowIndex = 0;
-    
-    // データ行を生成
-    weekDates.forEach((date, dateIndex) => {
-      let isFirstDateRow = true;
-      
-      mealTypes.forEach((type, typeIndex) => {
-        const meals = weekData[date][type];
-        // データがある場合はデータ行数 + 追加ボタン行、ない場合は追加ボタン行のみ
-        const typeRowspan = meals.length > 0 ? meals.length + 1 : 1;
-        let isFirstTypeRow = true;
-
-        // データがある場合のみ既存の献立行を表示
-        if (meals.length > 0) {
-          meals.forEach((meal, mealIndex) => {
-            // 行のCSSクラスを決定
-            let rowClasses = [];
-            
-            // 日付グループの境界線
-            if (dateIndex > 0 && isFirstDateRow && isFirstTypeRow && mealIndex === 0) {
-              rowClasses.push('date-group-border');
-            }
-            
-            // 区分グループの境界線（同じ日付内で区分が変わる場合）
-            if (typeIndex > 0 && isFirstTypeRow && mealIndex === 0) {
-              rowClasses.push('type-group-border');
-            }
-            
-            // 交互の行色（日付ごとに切り替え）
-            if (dateIndex % 2 === 0) {
-              rowClasses.push('row-even');
-            } else {
-              rowClasses.push('row-odd');
-            }
-            
-            const rowClassAttr = rowClasses.length > 0 ? ` class="${rowClasses.join(' ')}"` : '';
-            html += `<tr${rowClassAttr}>`;
-            
-            // 日付セル（日付の最初の行のみ）
-            if (isFirstDateRow) {
-              html += `<td class="date-cell" rowspan="${dateRowCounts[date]}">${WeekManager.formatDisplayDate(date)}</td>`;
-              isFirstDateRow = false;
-            }
-            
-            // 区分セル（区分の最初の行のみ）
-            if (isFirstTypeRow) {
-              html += `<td class="type-cell" rowspan="${typeRowspan}">${UIUtils.escapeHtml(type)}</td>`;
-              isFirstTypeRow = false;
-            }
-            
-            // メニューセル
-            html += `<td class="menu-cell">${UIUtils.renderMenuCell(meal.menu, meal.url)}</td>`;
-            
-            // メモセル
-            html += `<td class="memo-cell">${UIUtils.escapeHtml(meal.memo)}</td>`;
-            
-            // 削除ボタンセル
-            let menu_id = meal.id;
-            html += `<td class="action-cell">
-              <button class="delete-meal-btn" onclick="handleDeleteButtonPushed('${menu_id}')" title="削除">
-                🗑️
-              </button>
-            </td>`;
-            
-            html += '</tr>';
-            globalRowIndex++;
-          });
-        }
-        
-        // 追加ボタン行
-        let addRowClasses = ['add-meal-row'];
-        
-        // データがない場合の境界線処理
-        if (meals.length === 0) {
-          // 日付グループの境界線
-          if (dateIndex > 0 && isFirstDateRow && isFirstTypeRow) {
-            addRowClasses.push('date-group-border');
-          }
-          
-          // 区分グループの境界線（同じ日付内で区分が変わる場合）
-          if (typeIndex > 0 && isFirstTypeRow) {
-            addRowClasses.push('type-group-border');
-          }
-        }
-        
-        const addRowClassAttr = addRowClasses.length > 0 ? ` class="${addRowClasses.join(' ')}"` : '';
-        html += `<tr${addRowClassAttr}>`;
-        
-        // データがない場合の日付・区分セル
-        if (meals.length === 0) {
-          // 日付セル（日付の最初の行のみ）
-          if (isFirstDateRow) {
-            html += `<td class="date-cell" rowspan="${dateRowCounts[date]}">${WeekManager.formatDisplayDate(date)}</td>`;
-            isFirstDateRow = false;
-          }
-          
-          // 区分セル（区分の最初の行のみ）
-          if (isFirstTypeRow) {
-            html += `<td class="type-cell" rowspan="${typeRowspan}">${UIUtils.escapeHtml(type)}</td>`;
-            isFirstTypeRow = false;
-          }
-        }
-        
-        html += `<td class="menu-cell"><button class="add-meal-btn" onclick="openAddMealModal('${date}', '${type}')" title="献立を追加">+</button></td>`;
-        html += `<td class="memo-cell"></td>`;
-        html += `<td class="action-cell"></td>`;
-        html += `</tr>`;
-      });
-    });
-
-    html += '</tbody></table>';
-    return html;
-  }
-
-  generateTableHTML2(weekDates, weekData, container) {
+  renderSortableMealPlan(weekDates, weekData, container) {
     const root = container;
     root.innerHTML = "";
     Object.keys(weekData).forEach(date => {
       Object.keys(weekData[date]).forEach(type => {
         const header = document.createElement("li");
         const label = formatDate(date, "M/D(ddd)") + ` - ${type}`;
-        header.innerHTML = `<div class="date-header">${label}</div>`;
-        if (len(weekData[date][type]) > 0) {
-          const ul = document.createElement("ul");
-          ul.className = "meal-group";
-          ul.dataset.date = date;
-          ul.dataset.type = type;
-          for (const item of weekData[date][type]) {
-            const li = document.createElement("li");
-            li.className = "meal-item";
-            li.dataset.id = item.id;
-            const linkHTML = item.url ? `<a href="${item.url}" target="_blank">${item.menu}</a>` : "";
-            li.innerHTML = `
-              <span class="drag-handle">☰</span>
-              <div class="col-name">${item.menu}</div>
-              <div class="col-amount">${item.memo}</div>
-              <div class="col-checkbox"><input type="checkbox"></div>
-              <div class="col-link">${linkHTML}</div>
-            `;
-            ul.appendChild(li);
-          }
-          header.appendChild(ul);
+        // header.innerHTML = `<div class="date-header">${label}</div>`;
+        header.innerHTML = `<div class="date-header">${label} <button class="add-meal-btn" onclick="openAddMealModal('${date}', '${type}')" title="献立を追加">+</button></div>`;
+        const ul = document.createElement("ul");
+        ul.className = "meal-group";
+        ul.dataset.date = date;
+        ul.dataset.type = type;
+        for (const item of weekData[date][type]) {
+          const li = document.createElement("li");
+          li.className = "meal-item";
+          li.dataset.id = item.id;
+          const menuHTML = item.url ? `<a href="${item.url}" target="_blank">${item.menu}</a>` : item.menu;
+          li.innerHTML = `
+            <span class="drag-handle">☰</span>
+            <div class="col-name">${menuHTML}</div>
+            <div class="col-amount">${item.memo}</div>
+            <div class="action-cell">
+              <button class="delete-meal-btn" onclick="handleDeleteButtonPushed('${item.id}')" title="削除">
+                🗑️
+              </button>
+            </div>
+          `;
+          ul.appendChild(li);
         }
+        header.appendChild(ul);
         root.appendChild(header);
       });
     });
-
-    // const mealTypes = this.config?.MEAL_TYPES || ['昼', '夜'];
-    // // 各日付の総行数を計算（日付セルのrowspan用）
-    // const dateRowCounts = {};
-    // weekDates.forEach(date => {
-    //   let totalRows = 0;
-    //   mealTypes.forEach(type => {
-    //     const meals = weekData[date][type];
-    //     // データがある場合はデータ行数 + 追加ボタン行、ない場合は追加ボタン行のみ
-    //     totalRows += meals.length > 0 ? meals.length + 1 : 1;
-    //   });
-    //   dateRowCounts[date] = totalRows;
-    // });
-
-    // let globalRowIndex = 0;
-    
-    // データ行を生成
-    weekDates.forEach((date, dateIndex) => {
-      let isFirstDateRow = true;
-      
-      mealTypes.forEach((type, typeIndex) => {
-        const meals = weekData[date][type];
-        // データがある場合はデータ行数 + 追加ボタン行、ない場合は追加ボタン行のみ
-        const typeRowspan = meals.length > 0 ? meals.length + 1 : 1;
-        let isFirstTypeRow = true;
-
-        // データがある場合のみ既存の献立行を表示
-        if (meals.length > 0) {
-          meals.forEach((meal, mealIndex) => {
-            // 行のCSSクラスを決定
-            let rowClasses = [];
-            
-            // 日付グループの境界線
-            if (dateIndex > 0 && isFirstDateRow && isFirstTypeRow && mealIndex === 0) {
-              rowClasses.push('date-group-border');
-            }
-            
-            // 区分グループの境界線（同じ日付内で区分が変わる場合）
-            if (typeIndex > 0 && isFirstTypeRow && mealIndex === 0) {
-              rowClasses.push('type-group-border');
-            }
-            
-            // 交互の行色（日付ごとに切り替え）
-            if (dateIndex % 2 === 0) {
-              rowClasses.push('row-even');
-            } else {
-              rowClasses.push('row-odd');
-            }
-            
-            const rowClassAttr = rowClasses.length > 0 ? ` class="${rowClasses.join(' ')}"` : '';
-            html += `<tr${rowClassAttr}>`;
-            
-            // 日付セル（日付の最初の行のみ）
-            if (isFirstDateRow) {
-              html += `<td class="date-cell" rowspan="${dateRowCounts[date]}">${WeekManager.formatDisplayDate(date)}</td>`;
-              isFirstDateRow = false;
-            }
-            
-            // 区分セル（区分の最初の行のみ）
-            if (isFirstTypeRow) {
-              html += `<td class="type-cell" rowspan="${typeRowspan}">${UIUtils.escapeHtml(type)}</td>`;
-              isFirstTypeRow = false;
-            }
-            
-            // メニューセル
-            html += `<td class="menu-cell">${UIUtils.renderMenuCell(meal.menu)}</td>`;
-            
-            // メモセル
-            html += `<td class="memo-cell">${UIUtils.escapeHtml(meal.memo)}</td>`;
-            
-            // 削除ボタンセル
-            const menuText = typeof meal.menu === 'object' && meal.menu !== null && meal.menu.text ? meal.menu.text : meal.menu;
-            const deleteButtonData = {
-              date: date,
-              type: type,
-              menuText: menuText,
-              memo: meal.memo
-            };
-            html += `<td class="action-cell">
-              <button class="delete-meal-btn" onclick="openDeleteMealModal('${UIUtils.escapeForAttribute(JSON.stringify(deleteButtonData))}')" title="削除">
-                🗑️
-              </button>
-            </td>`;
-            
-            html += '</tr>';
-            globalRowIndex++;
-          });
-        }
-        
-        // 追加ボタン行
-        let addRowClasses = ['add-meal-row'];
-        
-        // データがない場合の境界線処理
-        if (meals.length === 0) {
-          // 日付グループの境界線
-          if (dateIndex > 0 && isFirstDateRow && isFirstTypeRow) {
-            addRowClasses.push('date-group-border');
-          }
-          
-          // 区分グループの境界線（同じ日付内で区分が変わる場合）
-          if (typeIndex > 0 && isFirstTypeRow) {
-            addRowClasses.push('type-group-border');
-          }
-        }
-        
-        const addRowClassAttr = addRowClasses.length > 0 ? ` class="${addRowClasses.join(' ')}"` : '';
-        html += `<tr${addRowClassAttr}>`;
-        
-        // データがない場合の日付・区分セル
-        if (meals.length === 0) {
-          // 日付セル（日付の最初の行のみ）
-          if (isFirstDateRow) {
-            html += `<td class="date-cell" rowspan="${dateRowCounts[date]}">${WeekManager.formatDisplayDate(date)}</td>`;
-            isFirstDateRow = false;
-          }
-          
-          // 区分セル（区分の最初の行のみ）
-          if (isFirstTypeRow) {
-            html += `<td class="type-cell" rowspan="${typeRowspan}">${UIUtils.escapeHtml(type)}</td>`;
-            isFirstTypeRow = false;
-          }
-        }
-        
-        html += `<td class="menu-cell"><button class="add-meal-btn" onclick="openAddMealModal('${date}', '${type}')" title="献立を追加">+</button></td>`;
-        html += `<td class="memo-cell"></td>`;
-        html += `<td class="action-cell"></td>`;
-        html += `</tr>`;
-      });
-    });
-    return html;
+    this.enableSorting();
   }
 
+  enableSorting() {
+    document.querySelectorAll('.meal-group').forEach(group => {
+      new Sortable(group, {
+        animation: 150,
+        handle: '.drag-handle',
+        group: 'meals',
+        filter: 'a, input',
+        onFilter: evt => {},
+        onEnd: evt => {
+          // 並び替え元と先の <ul class="meal-group"> 要素から data 属性を取得
+          const fromGroup = evt.from;
+          const toGroup = evt.to;
+
+          const fromDate = fromGroup.dataset.date;
+          const toDate = toGroup.dataset.date;
+          const fromType = fromGroup.dataset.type;
+          const toType = toGroup.dataset.type;
+
+          const movedItem = evt.item;
+          const id = movedItem.dataset.id;
+          const menuName = movedItem.querySelector('.col-name')?.textContent.trim();
+
+          console.log(`メニュー「${menuName}」（id=${id}）が移動しました`);
+          console.log(`  - 移動元: ${fromDate} ${fromType}`);
+          console.log(`  - 移動先: ${toDate} ${toType}`);
+          console.log(`  - oldIndex: ${evt.oldIndex}, newIndex: ${evt.newIndex}`);
+
+          const newOrder = Array.from(toGroup.children).map(li => li.dataset.id);
+          console.log(`日付 ${toDate} の新しい順番:`, newOrder);
+
+          if (!(id in this.local_meal_plan)) {
+            this.local_meal_plan[id] = this.structured_meal_plan[id];
+          }
+          this.local_meal_plan[id].date = toDate;
+          this.local_meal_plan[id].type = toType;
+          google.script.run
+            .withSuccessHandler(result => {
+              if (result.success == false) {
+                console.error('並び替えに失敗しました。' + result.message);
+                UIUtils.showError('並び替えに失敗しました。' + result.message);
+              }
+            })
+            .withFailureHandler(error => {
+              console.error('並び替えに失敗しました。' + error.message);
+              UIUtils.showError('並び替えに失敗しました。' + error.message);
+            })
+            .updateMealMenuForApp(this.local_meal_plan[id]);
+        }
+      });
+    });
+  }
   /**
    * テーブルを描画
    */
@@ -501,13 +295,10 @@ class MealPlanApp {
       const weekData = this.organizeWeekData(weekDates);
       console.log('Organized data:', weekData);
 
-      // テーブルHTML生成
-      const tableHTML = this.generateTableHTML(weekDates, weekData);
-      
       // テーブルを更新
       const tableElement = document.getElementById('mealTable');
       if (tableElement) {
-        tableElement.innerHTML = tableHTML;
+        this.renderSortableMealPlan(weekDates, weekData, tableElement);
       }
 
       console.log('=== テーブル描画完了 ===');
@@ -694,45 +485,7 @@ function handleDeleteButtonPushed(id) {
   }
 }
 
-function enableSorting() {
-  document.querySelectorAll('.meal-group').forEach(group => {
-    new Sortable(group, {
-      animation: 150,
-      handle: '.drag-handle',
-      group: 'meals',
-      filter: 'a, input',
-      onFilter: evt => {},
-      onEnd: evt => {
-        // 並び替え元と先の <ul class="meal-group"> 要素から data 属性を取得
-        const fromGroup = evt.from;
-        const toGroup = evt.to;
 
-        const fromDate = fromGroup.dataset.date;
-        const toDate = toGroup.dataset.date;
-        const fromType = fromGroup.dataset.type;
-        const toType = toGroup.dataset.type;
-
-        const movedItem = evt.item;
-        const id = movedItem.dataset.id;
-        const menuName = movedItem.querySelector('.col-name')?.textContent.trim();
-
-        console.log(`メニュー「${menuName}」（id=${id}）が移動しました`);
-        console.log(`  - 移動元: ${fromDate} ${fromType}`);
-        console.log(`  - 移動先: ${toDate} ${toType}`);
-        console.log(`  - oldIndex: ${evt.oldIndex}, newIndex: ${evt.newIndex}`);
-
-        const newOrder = Array.from(toGroup.children).map(li => li.dataset.id);
-        console.log(`日付 ${toDate} の新しい順番:`, newOrder);
-      }
-    });
-  });
-}
-
-// document.addEventListener('DOMContentLoaded', () => {
-//   // HTMLが完全に読み込まれてから初期化処理を実行する
-//   // generateMealList(mealData, document.getElementById("meal-list-root-generated"));
-//   enableSorting();
-// });
 
 console.log('Meal plan module loaded successfully');
 </script>

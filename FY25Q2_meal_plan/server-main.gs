@@ -763,6 +763,40 @@ function deleteMealDataByIdForApp(del_id) {
   }
 }
 
+function updateMealMenuForApp(new_menu) {
+  try {
+    const ID_INDEX = 5;
+    const sheet = getSheet(CONFIG.MEAL_PLAN_SHEET_NAME);
+    const dataRange = sheet.getDataRange();
+    const values = dataRange.getValues();
+
+    found_row_idx = -1;
+    for (let i = 1; i < values.length; i++) {
+      if (values[i][ID_INDEX] == new_menu.id) {
+        found_row_idx = i;
+        break;
+      }
+    }
+    if (found_row_idx == -1) {
+      throw new Error(`Error: id:${new_menu.id} is not found`);
+    }
+
+    sheet.getRange(found_row_idx + 1, 1, 1, 6).setValues(
+        [[new_menu.date, new_menu.type, new_menu.menu, new_menu.url, new_menu.memo, new_menu.id]]);
+
+    return  {
+      success: true,
+      message: ''
+    }
+  } catch (error) {
+    return {
+      success: false,
+      message: 'データの更新に失敗しました。ページをリロードしてください。 : ' + error.message
+    };
+  }
+}
+
+
 /**
  * テスト用関数 - fetchTitleFromUrlの詳細テスト
  */
