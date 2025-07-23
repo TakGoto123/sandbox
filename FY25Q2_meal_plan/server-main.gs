@@ -898,7 +898,15 @@ function createShoppingListForPeriodForApp(startDate, endDate) {
     checkAccess();
     
     Logger.log(`Creating shopping list for period: ${startDate} to ${endDate}`);
-    
+
+    // // Just for Test
+    // return {
+    //   success: true,
+    //   message: TEST_TEXT,
+    //   sheetName: "weekend-20250719",
+    //   period: "2025-07-21 ~ 2025-07-25"
+    // }
+
     // 日付形式のバリデーション
     validateDateRange(startDate, endDate);
     
@@ -928,7 +936,7 @@ function createShoppingListForPeriodForApp(startDate, endDate) {
     
     return {
       success: true,
-      message: '買い出しリストを作成しました',
+      message: geminiResponse,
       sheetName: sheetName,
       period: `${startDate} ～ ${endDate}`
     };
@@ -1134,3 +1142,8 @@ function deleteTodoForApp(rowNumber) {
     };
   }
 }
+
+const TEST_TEXT = `
+承知いたしました。各料理の3人分の材料と分量をリストアップし、その後、買い出しリストを作成します。\nなお、4番目の料理「暑くなってきたらこれ！切って和えるだけ♪薬味たっぷりきゅうりの簡単副菜レシピ・作り方｜Tasty」については、コンテンツにアクセスできなかったため、材料をリストアップできません。\n\n---\n\n### 【料理一覧】\n\n**# 1番目の料理**\n**## 料理名：小松菜のツナマヨおかか和えのレシピ/作り方 | つくおき**\n3人分の材料と分量:\n*   小松菜：1袋（5株くらい）\n*   ツナ缶（油漬けタイプ）：1缶\n*   マヨネーズ：大さじ1/2\n*   和風だしの素：小さじ1/2\n*   おかか：小分け1袋\n\n**# 2番目の料理**\n**## 料理名：白菜の甘酢漬け（ラーパーツァイ風）のレシピ/作り方 | つくおき**\n3人分の材料と分量:\n*   白菜：1/8株（約300g）\n*   にんじん：1/3本\n*   しょうが：1かけ（約10g）\n*   塩（塩もみ用）：小さじ1\n*   穀物酢：大さじ3\n*   砂糖：大さじ2\n*   ごま油：大さじ1/2\n*   輪切り唐辛子：少々\n\n**# 3番目の料理**\n**## 料理名：トロッと溶ける！ トマトと鶏肉のネギ塩炒めのレシピ動画・作り方 | デリッシュキッチン**\n3人分の材料と分量:\n*   鶏もも肉：1.5枚\n*   トマト：1.5個\n*   片栗粉：大さじ1.5\n*   サラダ油：小さじ3\n*   長ねぎ：約3/4本\n*   酒：大さじ3\n*   ごま油：小さじ1.5\n*   塩：小さじ0.75\n*   こしょう：少々\n\n**# 4番目の料理**\n**## 料理名：暑くなってきたらこれ！切って和えるだけ♪薬味たっぷりきゅうりの簡単副菜レシピ・作り方｜Tasty**\n大変申し訳ございませんが、リンク先のページにアクセスできなかったため、材料をリストアップできませんでした。\n\n**# 5番目の料理**\n**## 料理名：お昼に にんじんのぐるぐる肉巻き 作り方・レシピ | クラシル**\n3人分の材料と分量:\n*   豚バラ肉 (薄切り)：150g\n*   薄力粉：小さじ3\n*   にんじん：75g\n*   料理酒：大さじ1.5\n*   しょうゆ：大さじ1.5\n*   砂糖：大さじ1.5\n*   サラダ油：大さじ1.5\n\n---\n\n### 買い出しリスト\n\n
+\`\`\`csv\nID,category,item,unnecessary,done\n1,1.野菜,小松菜：1袋,FALSE,FALSE\n2,1.野菜,白菜：1/8株,FALSE,FALSE\n3,1.野菜,にんじん：1/3本＋75g,FALSE,FALSE\n4,1.野菜,しょうが：1かけ,FALSE,FALSE\n5,1.野菜,トマト：1.5個,FALSE,FALSE\n6,1.野菜,長ねぎ：約3/4本,FALSE,FALSE\n7,2.肉・魚,ツナ缶（油漬けタイプ）：1缶,FALSE,FALSE\n8,2.肉・魚,鶏もも肉：1.5枚,FALSE,FALSE\n9,2.肉・魚,豚バラ肉 (薄切り)：150g,FALSE,FALSE\n10,3.その他,マヨネーズ：大さじ1/2,FALSE,FALSE\n11,3.その他,和風だしの素：小さじ1/2,FALSE,FALSE\n12,3.その他,おかか：小分け1袋,FALSE,FALSE\n13,3.その他,塩：小さじ1＋小さじ0.75,FALSE,FALSE\n14,3.その他,穀物酢：大さじ3,FALSE,FALSE\n15,3.その他,砂糖：大さじ2＋大さじ1.5,FALSE,FALSE\n16,3.その他,ごま油：大さじ1/2＋小さじ1.5,FALSE,FALSE\n17,3.その他,輪切り唐辛子：少々,FALSE,FALSE\n18,3.その他,片栗粉：大さじ1.5,FALSE,FALSE\n19,3.その他,サラダ油：小さじ3＋大さじ1.5,FALSE,FALSE\n20,3.その他,酒：大さじ3,FALSE,FALSE\n21,3.その他,こしょう：少々,FALSE,FALSE\n22,3.その他,薄力粉：小さじ3,FALSE,FALSE\n23,3.その他,しょうゆ：大さじ1.5,FALSE,FALSE\n\`\`\`
+`

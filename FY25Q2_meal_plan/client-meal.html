@@ -104,6 +104,37 @@
     line-height: 1;
   }
 
+.custom-modal-overlay {
+  position: fixed;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background: rgba(0,0,0,0.5);
+  display: flex; align-items: center; justify-content: center;
+  z-index: 9999;
+}
+
+.custom-modal {
+  background: white;
+  border-radius: 8px;
+  width: 95%;
+  max-height: 90vh;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 5px 15px rgba(0,0,0,0.3);
+  overflow: hidden;
+}
+
+.modal-content {
+  padding: 20px;
+  overflow-y: auto;
+  flex-grow: 1;
+  line-height: 1.6;
+}
+
+.modal-buttons {
+  font-size: 24px ;
+  text-align: right;
+}
+
 </style>
 
 <script>
@@ -430,7 +461,7 @@ function createShoppingList() {
  * 買い出しリスト作成成功時の処理
  * @param {Object} result - サーバーからの結果
  */
-function onShoppingListCreated(result) {
+async function onShoppingListCreated(result) {
   hideProcessingState();
   
   if (result.success) {
@@ -439,7 +470,7 @@ function onShoppingListCreated(result) {
                     `シート名: ${result.sheetName}\n\n` +
                     'Weekendタブで確認しますか？';
     
-    if (confirm(message)) {
+    if (await showMarkdownConfirm(message)) {
       // Weekendタブに切り替え
       showWeekend();
     }
@@ -499,7 +530,33 @@ function handleDeleteButtonPushed(id) {
   }
 }
 
+function showMarkdownConfirm(markdownText) {
+  return new Promise((resolve) => {
+    const html = marked.parse(markdownText);
 
+    const modal = document.createElement('div');
+    modal.classList.add('custom-modal-overlay');
+    modal.innerHTML = `
+      <div class="custom-modal">
+        <div class="modal-content">${html}</div>
+        <div class="modal-buttons">
+          <button id="modal-ok">OK</button>
+          <button id="modal-cancel">キャンセル</button>
+        </div>
+      </div>
+    `;
+    document.body.appendChild(modal);
+
+    document.getElementById('modal-ok').onclick = () => {
+      resolve(true);
+      modal.remove();
+    };
+    document.getElementById('modal-cancel').onclick = () => {
+      resolve(false);
+      modal.remove();
+    };
+  });
+}
 
 console.log('Meal plan module loaded successfully');
 </script>
