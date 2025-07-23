@@ -12,31 +12,17 @@ function buildGeminiPromptForPeriod(startDate, endDate) {
     return '指定期間に料理がありません。';
   }
 
-  let idx = 0;
-  const recipeDescriptions = mealsInRange.map(([date, type, menu, memo]) => {
+  const recipeDescriptions = mealsInRange.map(([date, type, menu, url, memo], idx) => {
     // メニュー名取得
-    let menuName = '';
-    let recipePart = '';
-
-    if (typeof menu === 'object' && menu.url) {
-      // ハイパーリンクの場合、URL から取得したタイトルを使用
-      menuName = typeof menu.text === 'string' ? menu.text : '不明な料理';
-      recipePart = `URL:\n${menu.url}`;
-    } else {
-      // 通常の文字列
-      menuName = String(menu);
-      if (memo && memo.trim()) {
-        recipePart = `材料メモ：\n${memo.trim()}`;
-      } else {
-        recipePart = '';
-      }
+    if (url) {
+      recipePart = `URL:\n${url}`;
+    } else if (memo) {
+      recipePart = `材料メモ：\n${memo.trim()}`;
     }
-
     // 料理1件あたりの記述
-    if (recipePart) {
-      idx = idx + 1;
-      return `# ${idx}番目の料理\n## 料理名：${menuName}\n## ${recipePart}`;
-    }
+    return recipePart
+      ? `# ${idx+1}番目の料理\n## 料理名：${menu}\n## ${recipePart}`
+      : '';
   });
 
   const recipeListText = recipeDescriptions.join('\n');
