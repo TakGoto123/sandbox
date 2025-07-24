@@ -475,27 +475,32 @@
   }
 
   /* ========================================
-      Weekend ショッピングリスト
+      Weekend ショッピングリスト - 拡張スタイル統合
       ======================================== */
-  .weekend-container {
-    margin-top: 20px;
-  }
+
+  /* カテゴリごとに背景色ローテーション */
+  .weekend-section:nth-child(4n+1) { background: #4a5568; }
+  .weekend-section:nth-child(4n+2) { background: #2d3748; }
+  .weekend-section:nth-child(4n+3) { background: #2b6cb0; }
+  .weekend-section:nth-child(4n+4) { background: #38a169; }
 
   .weekend-section {
     margin-bottom: 30px;
-    background: white;
     border-radius: 8px;
     box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
     overflow: hidden;
+    padding: 2px 4px;
+    border: 1px solid #e0e0e0;
   }
 
   .weekend-section h3 {
-    background: #34495e;
-    color: white;
     margin: 0;
-    padding: 15px 20px;
-    font-size: 1.1em;
+    padding: 0 5px;
+    font-size: 2rem;
     font-weight: 500;
+    background: inherit;
+    color: white;
+    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
   }
 
   .weekend-items {
@@ -508,40 +513,92 @@
     padding: 10px 0;
     border-bottom: 1px solid #ecf0f1;
     gap: 15px;
+    background: rgba(255,255,255,0.9);
+    border-radius: 2px;
+    transition: all 0.2s ease;
+    min-height: 44px;
+    word-wrap: break-word;
+    overflow-wrap: break-word;
+  }
+
+  .weekend-item:hover {
+    background: rgba(255,255,255,1);
+    box-shadow: 0 1px 3px rgba(0,0,0,0.1);
   }
 
   .weekend-item:last-child {
     border-bottom: none;
   }
 
-  .weekend-item.done .item-text {
+  .weekend-item.done .weekend-item-text {
     text-decoration: line-through;
     color: #7f8c8d;
   }
 
-  .weekend-checkbox {
-    width: 18px;
-    height: 18px;
-    cursor: pointer;
-  }
-
-  .checkbox-label {
-    font-size: 0.9em;
-    color: #7f8c8d;
-    margin-right: 10px;
-    white-space: nowrap;
-  }
-
-  .item-text {
+  .weekend-item-text {
     flex: 1;
-    font-size: 1em;
+    margin: 0 8px;
+    font-size: 2rem;
+    line-height: 1.1;
+    word-break: break-word;
+    overflow-wrap: break-word;
     color: #2c3e50;
   }
 
+  .weekend-checkbox {
+    margin-right: 2px;
+    width: 36px;
+    height: 36px;
+    cursor: pointer;
+    flex-shrink: 0;
+  }
+
+  .checkbox-container {
+    display: flex;
+    align-items: center;
+    cursor: pointer;
+    padding: 1px 3px;
+    border-radius: 2px;
+    transition: background-color 0.2s ease;
+    min-width: 44px;
+    min-height: 44px;
+    justify-content: center;
+    flex-shrink: 0;
+  }
+
+  .checkbox-container:hover {
+    background-color: rgba(0,0,0,0.05);
+  }
+
+  .checkbox-container:active {
+    background-color: rgba(0,0,0,0.1);
+  }
+
+  .checkbox-label {
+    margin-left: 1px;
+    font-size: 32px;
+    color: #666;
+    white-space: nowrap;
+    flex-shrink: 0;
+    user-select: none;
+  }
+
+  .weekend-empty {
+    text-align: center;
+    color: #7f8c8d;
+    font-style: italic;
+    padding: 40px 20px;
+  }
+
   .unnecessary-section {
-    background: #f8f9fa;
-    border-radius: 8px;
+    background: #6b7280 !important;
+    border-color: #ccc;
+    margin: 0;
     margin-top: 30px;
+    padding: 2px 4px;
+    border: 1px solid #e0e0e0;
+    border-radius: 8px;
+    box-shadow: 0 1px 2px rgba(0,0,0,0.03);
   }
 
   .unnecessary-section h2 {
@@ -553,17 +610,47 @@
     font-weight: 500;
     border-top-left-radius: 8px;
     border-top-right-radius: 8px;
+    text-shadow: 0 1px 2px rgba(0,0,0,0.3);
   }
 
   .unnecessary-items {
     padding: 20px;
   }
 
-  .weekend-empty {
-    text-align: center;
-    color: #7f8c8d;
-    font-style: italic;
-    padding: 40px 20px;
+  /* 状態変化スタイル */
+  .remote-updated {
+    background-color: #e3f2fd !important;
+    border-left: 3px solid #2196f3;
+    animation: remoteUpdate 0.5s ease;
+  }
+
+  @keyframes remoteUpdate {
+    0% { background-color: #bbdefb; }
+    100% { background-color: #e3f2fd; }
+  }
+
+  .conflict-resolved {
+    background-color: #fff3e0 !important;
+    border-left: 3px solid #ff9800;
+  }
+
+  .pending-update {
+    opacity: 0.7;
+    position: relative;
+  }
+
+  .pending-update::after {
+    content: "⏳";
+    position: absolute;
+    right: 5px;
+    top: 50%;
+    transform: translateY(-50%);
+    font-size: 14px;
+  }
+
+  .error-state {
+    background-color: #ffebee !important;
+    border-left: 3px solid #f44336;
   }
 
   /* ========================================

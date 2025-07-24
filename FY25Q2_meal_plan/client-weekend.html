@@ -260,7 +260,7 @@
         if (unnecessaryCheckbox) unnecessaryCheckbox.checked = change.unnecessary;
         
         // テキスト装飾の更新
-        const textElement = element.querySelector('.item-text');
+        const textElement = element.querySelector('.weekend-item-text');
         if (textElement) {
           if (change.done) {
             textElement.classList.add('done');
@@ -409,7 +409,7 @@
                 <span class="checkbox-label">✓</span>
               </label>
               
-              <span class="item-text">${UIUtils.escapeHtml(item.item)}</span>
+              <span class="weekend-item-text">${UIUtils.escapeHtml(item.item)}</span>
               
               <label class="checkbox-container">
                 <input type="checkbox" class="weekend-checkbox unnecessary-checkbox" 
@@ -445,7 +445,7 @@
                 <span class="checkbox-label">✓</span>
               </label>
               
-              <span class="item-text">${UIUtils.escapeHtml(item.item)}</span>
+              <span class="weekend-item-text">${UIUtils.escapeHtml(item.item)}</span>
               
               <label class="checkbox-container">
                 <input type="checkbox" class="weekend-checkbox unnecessary-checkbox" 
@@ -577,170 +577,6 @@
     } catch (error) {
       UIUtils.showNotification('エラー: ' + error.message, 'error');
     }
-  }
-
-  // Weekend用のCSSスタイルを追加
-  if (!document.getElementById('weekend-manager-styles')) {
-    const style = document.createElement('style');
-    style.id = 'weekend-manager-styles';
-    style.textContent = `
-      /* カテゴリ背景色の定義 - 濃い色で白文字用 */
-      .weekend-section:nth-child(4n+1) { background: #4a5568; }
-      .weekend-section:nth-child(4n+2) { background: #2d3748; }
-      .weekend-section:nth-child(4n+3) { background: #2b6cb0; }
-      .weekend-section:nth-child(4n+4) { background: #38a169; }
-      
-      .weekend-section {
-        margin: 0;
-        padding: 2px 4px;
-        border: 1px solid #e0e0e0;
-        border-radius: 3px;
-        box-shadow: 0 1px 2px rgba(0,0,0,0.03);
-      }
-      
-      .weekend-section h3 {
-        margin: 0;
-        color: white;
-        font-size: 2.2em;
-        font-weight: 600;
-        padding: 1px 2px;
-        text-shadow: 0 1px 2px rgba(0,0,0,0.3);
-      }
-      
-      .weekend-item {
-        display: flex;
-        align-items: center;
-        margin: 0;
-        padding: 2px 3px;
-        background: rgba(255,255,255,0.9);
-        border-radius: 2px;
-        transition: all 0.2s ease;
-        min-height: 44px; /* タッチフレンドリー */
-        word-wrap: break-word;
-        overflow-wrap: break-word;
-      }
-      
-      .weekend-item:hover {
-        background: rgba(255,255,255,1);
-        box-shadow: 0 1px 3px rgba(0,0,0,0.1);
-      }
-      
-      .weekend-item.done .item-text {
-        text-decoration: line-through;
-        color: #888;
-      }
-      
-      .weekend-checkbox {
-        margin-right: 2px;
-        width: 24px;
-        height: 24px;
-        cursor: pointer;
-        flex-shrink: 0;
-      }
-      
-      .checkbox-container {
-        display: flex;
-        align-items: center;
-        cursor: pointer;
-        padding: 1px 3px;
-        border-radius: 2px;
-        transition: background-color 0.2s ease;
-        min-width: 44px;
-        min-height: 44px;
-        justify-content: center;
-        flex-shrink: 0;
-      }
-      
-      .checkbox-container:hover {
-        background-color: rgba(0,0,0,0.05);
-      }
-      
-      .checkbox-container:active {
-        background-color: rgba(0,0,0,0.1);
-      }
-      
-      .checkbox-label {
-        margin-left: 1px;
-        font-size: 32px;
-        color: #666;
-        white-space: nowrap;
-        flex-shrink: 0;
-        user-select: none;
-      }
-      
-      .item-text {
-        flex: 1;
-        margin: 0 8px;
-        font-size: 28px;
-        line-height: 1.1;
-        word-break: break-word;
-        overflow-wrap: break-word;
-      }
-      
-      .weekend-empty {
-        text-align: center;
-        padding: 20px;
-        color: #666;
-        font-style: italic;
-      }
-      
-      .unnecessary-section {
-        background: #6b7280 !important;
-        border-color: #ccc;
-        margin-top: 0;
-        margin: 0;
-        padding: 2px 4px;
-        border: 1px solid #e0e0e0;
-        border-radius: 3px;
-        box-shadow: 0 1px 2px rgba(0,0,0,0.03);
-      }
-      
-      .unnecessary-section h2 {
-        color: white;
-        margin: 0;
-        font-size: 2.2em;
-        font-weight: 600;
-        padding: 1px 2px;
-        text-shadow: 0 1px 2px rgba(0,0,0,0.3);
-      }
-      
-      /* 楽観的更新とポーリング関連のスタイル */
-      .remote-updated {
-        background-color: #e3f2fd !important;
-        border-left: 3px solid #2196f3;
-        animation: remoteUpdate 0.5s ease;
-      }
-      
-      @keyframes remoteUpdate {
-        0% { background-color: #bbdefb; }
-        100% { background-color: #e3f2fd; }
-      }
-      
-      .conflict-resolved {
-        background-color: #fff3e0 !important;
-        border-left: 3px solid #ff9800;
-      }
-      
-      .pending-update {
-        opacity: 0.7;
-        position: relative;
-      }
-      
-      .pending-update::after {
-        content: "⏳";
-        position: absolute;
-        right: 5px;
-        top: 50%;
-        transform: translateY(-50%);
-        font-size: 14px;
-      }
-      
-      .error-state {
-        background-color: #ffebee !important;
-        border-left: 3px solid #f44336;
-      }
-    `;
-    document.head.appendChild(style);
   }
 
   console.log('Weekend manager loaded successfully');
