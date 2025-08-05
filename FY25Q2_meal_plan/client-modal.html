@@ -142,26 +142,6 @@ class ModalHandler {
       form.addEventListener('submit', (e) => this.handleFormSubmit(e));
     }
     
-    // 追加モーダル外クリックで閉じる
-    const addModal = document.getElementById('addMealModal');
-    if (addModal) {
-      addModal.addEventListener('click', (e) => {
-        if (e.target === addModal) {
-          this.closeModal();
-        }
-      });
-    }
-
-    // 削除モーダル外クリックで閉じる
-    const deleteModal = document.getElementById('deleteMealModal');
-    if (deleteModal) {
-      deleteModal.addEventListener('click', (e) => {
-        if (e.target === deleteModal) {
-          this.closeDeleteModal();
-        }
-      });
-    }
-
     // ESCキーでモーダルを閉じる
     document.addEventListener('keydown', (e) => {
       if (e.key === 'Escape') {
