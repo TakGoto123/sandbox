@@ -346,6 +346,9 @@ class MealPlanApp {
         this.renderSortableMealPlan(weekDates, weekData, tableElement);
       }
 
+      document.getElementById("mealTable").classList.remove('loading');
+
+
       console.log('=== テーブル描画完了 ===');
     } catch (error) {
       console.error('Table render error:', error);
