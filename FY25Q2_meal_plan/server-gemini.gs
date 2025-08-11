@@ -6,13 +6,14 @@
  */
 function buildGeminiPromptForPeriod(startDate, endDate) {
   const allData = getMealData().data;
-  const mealsInRange = allData.filter(([date]) => startDate <= date && date <= endDate);
+  const mealsInRange = allData.filter(([date, type, menu, url, memo]) => startDate <= date && date <= endDate && (url || memo));
 
   if (mealsInRange.length === 0) {
     return '指定期間に料理がありません。';
   }
 
   const recipeDescriptions = mealsInRange.map(([date, type, menu, url, memo], idx) => {
+    let recipePart = null;
     // メニュー名取得
     if (url) {
       recipePart = `URL:\n${url}`;
@@ -37,7 +38,7 @@ function buildGeminiPromptForPeriod(startDate, endDate) {
 - 材料メモ：で記載されている場合
   - その情報を忠実に守って３人分の材料をピックアップしてください。余計な補完は不要です。
   - 【1人分】【2人分】などの記載がある場合は、その人数分をもとに3人前を換算してください。
-  - 人数の指定がない場合は、その分量を３人分とみなしてください。
+  - 人数分の指定がない場合は、その分量を３人分とみなして、そのままの分量を用いてください。
 - 各料理に対して、材料名、分量を正確に記載してください。
 - この後、買い出しリスト作成のために材料の分量を集計するため、同じ料理があってもスキップはしないでください。
 
