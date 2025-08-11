@@ -917,6 +917,14 @@ function createShoppingListForPeriodForApp(startDate, endDate) {
     // 2. fetchIngredientsFromGeminiを呼び出し
     const geminiResponse = fetchIngredientsFromGemini(prompt);
     Logger.log('Gemini response received');
+
+    // Send e-mail for debug
+    const debugEmail = PropertiesService.getScriptProperties().getProperty('DEBUG_EMAIL');
+    MailApp.sendEmail(
+      debugEmail,
+      '[DEBUG] まとめ買いさん Geminiログ',
+      'prompt:\n' + prompt + '\nresponse:\n' + geminiResponse
+    );
     
     // 3. 前の土曜日を計算（YYYYMMDDフォーマット）
     const saturdayDate = calculatePreviousSaturday(startDate);
